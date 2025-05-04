@@ -8,15 +8,27 @@ import ru.greemlab.tutor_telegram_bot.service.SurveyService
 
 @Component
 class CallbackHandler(
-    private val cases: CaseService,
-    private val survey: SurveyService
+    private val cases : CaseService,
+    private val survey: SurveyService,
 ) {
+
     suspend fun handle(q: CallbackQuery) = when (CallbackType.from(q.data)) {
         CallbackType.START_SURVEY ->
-            survey.start(q.message.chatId, q.from.id, q.from.userName, null)
+            survey.start(
+                chat  = q.message.chatId,
+                userId = q.from.id,
+                nick   = q.from.userName,
+                phone  = null
+            )
+
         CallbackType.START_CASES  ->
-            cases.start (q.message.chatId, q.from.id, q.from.userName, null)
+            cases.start(
+                chat   = q.message.chatId,
+                userId = q.from.id,
+                nick   = q.from.userName,
+                phone  = null
+            )
+
         null -> Unit
     }
-
 }

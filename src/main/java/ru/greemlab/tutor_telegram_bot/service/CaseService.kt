@@ -11,66 +11,65 @@ import java.util.concurrent.ConcurrentHashMap
 class CaseService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
     private val catalog: CaseCatalog,
-    private val sender: SenderService,
-    private val kb: KeyboardService,
-    private val pdf: PdfService,
-    private val survey: SurveyService,
+    private val sender : SenderService,
+    private val kb     : KeyboardService,
+    private val pdf    : PdfService,
+    private val survey : SurveyService,
 ) {
     private val sessions = ConcurrentHashMap<Long, CaseSession>()
 
     fun active(chat: Long) = sessions.containsKey(chat)
-    fun cancel(chat: Long) {
-        sessions.remove(chat)
-    }
+    fun cancel(chat: Long) { sessions.remove(chat) }
 
     suspend fun start(chat: Long, userId: Long, nick: String?, phone: String?) {
-        sessions[chat] = CaseSession(catalog).also {
-            // сохраняем ID/ник/телефон в SurveyService, чтобы потом взять
-            survey.cacheProfile(chat, userId, nick, phone)
-        }
+        sessions[chat] = CaseSession(catalog)
+        survey.cacheProfile(chat, userId, nick, phone)
         ask(chat)
     }
 
-
-     fun answer(chat: Long, txt: String) {
+    suspend fun answer(chat: Long, txt: String) {
         val s = sessions[chat] ?: return
         s.answer(txt)
         if (!s.next()) finish(chat) else ask(chat)
     }
 
-    private  fun ask(chat: Long) =
+    private suspend fun ask(chat: Long) =
         sessions[chat]?.current?.let { sender.photo(chat, it.image) }
 
-    private fun finish(chat: Long) {
+    private suspend fun finish(chat: Long) {
         val cs = sessions.remove(chat) ?: return
+
+        /* профиль кандидата */
+        val (id, nick, phone) = survey.profile(chat) ?: Triple(chat, null, null)
+
+        /* -------- PDF -------- */
         val pdfFile = pdf.build(
             chat,
-            survey.answers(chat)[SurveyQuestion.FULL_NAME],
-            null,
-            survey.answers(chat),
-            cs.dump(),
+            nick,                               // ник в шапке
+            phone,
+            survey.answers(chat),               // ответы анкеты
+            cs.dump(),                          // ответы кейсов
             catalog
         )
 
-        sender.document(chat, pdfFile, "📄 Ваши ответы приняты, спасибо!")
-        sender.send(
-            chat, """
+        /* кандидату */
+        sender.send(chat, """
             👏 Благодарим за ответы!
             Мы свяжемся с вами после проверки.
-        """.trimIndent(), kb.remove()
-        )
-        sender.document(chat, pdfFile, "")
+        """.trimIndent(), kb.remove())
 
-        adminId?.takeIf { it != chat }?.let {
-            sender.document(it, pdfFile, "📥 Ответы кандидата ID $chat")
+        /* админу */
+        adminId?.takeIf { it != chat }?.let { admin ->
+            sender.send(admin, buildResume(id, nick, phone), null)
+            sender.document(admin, pdfFile, "📥 Ответы кандидата @$nick")
         }
+        sender.send(chat, buildResume(id, nick, phone), null)
+        sender.document(chat,pdfFile, "📥 Ответы кандидата @$nick")
     }
 
     private fun buildResume(id: Long, nick: String?, phone: String?) = """
-    📝 Кандидат
-    ID: <code>$id</code>
-    Ник: ${nick?.let { "@$it" } ?: "—"}
-    Телефон: ${phone ?: "—"}
-""".trimIndent()
-
+        📝 Кандидат
+        Ник: ${nick?.let { "@$it" } ?: "—"}
+        Телефон: ${phone ?: "—"}
+    """.trimIndent()
 }
