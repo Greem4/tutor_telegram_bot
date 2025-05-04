@@ -23,14 +23,16 @@ class KeyboardService {
     fun beginCases() = InlineKeyboardMarkup(
         listOf(
             listOf(
-        InlineKeyboardButton("НАЧАТЬ 2‑й ЭТАП ➡️").apply {
-            callbackData = CallbackType.START_CASES.id
-        }
-    )))
+                InlineKeyboardButton("НАЧАТЬ 2‑й ЭТАП ➡").apply {
+                    callbackData = CallbackType.START_CASES.id
+                }
+            )))
 
     fun cancel(): ReplyKeyboardMarkup =
         ReplyKeyboardMarkup(listOf(KeyboardRow().apply { add(UserCommand.CANCEL.text) })).apply {
             resizeKeyboard = true
+            selective = false
+            oneTimeKeyboard = true
         }
 
     fun remove() = ReplyKeyboardRemove(true)

@@ -43,8 +43,8 @@ class SurveyService(
     /* ------------ логика заданий ------------ */
 
     private fun ask(chat: Long) {
-        sessions[chat]?.let {
-            sender.send(chat, it.current.prompt, kb.cancel())
+        sessions[chat]?.let {                      //TODO вкл кнопку отмены
+            sender.send(chat, it.current.prompt, /*kb.cancel()*/ )
         }
     }
 

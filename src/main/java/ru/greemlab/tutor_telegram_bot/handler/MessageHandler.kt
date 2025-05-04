@@ -22,7 +22,7 @@ class MessageHandler(
         else                -> handleRoot  (chat, text)
     }
 
-    private suspend fun handleSurvey(chat: Long, text: String) =
+    private fun handleSurvey(chat: Long, text: String) =
         if (text.equals(UserCommand.CANCEL.text, true)) {
             survey.cancel(chat); sender.send(chat, BotMessages.WELCOME_MESSAGE, kb.start())
         } else survey.answer(chat, text)
@@ -32,7 +32,7 @@ class MessageHandler(
             cases.cancel(chat); sender.send(chat, BotMessages.WELCOME_MESSAGE, kb.beginCases())
         } else cases.answer(chat, text)
 
-    private suspend fun handleRoot(chat: Long, text: String) = when (UserCommand.parse(text)) {
+    private fun handleRoot(chat: Long, text: String) = when (UserCommand.parse(text)) {
         UserCommand.START  -> sender.send(chat, BotMessages.WELCOME_MESSAGE, kb.start())
         UserCommand.CANCEL -> sender.send(chat, BotMessages.WELCOME_MESSAGE, kb.remove())
         null               -> sender.send(chat, BotMessages.UNKNOWN_COMMAND, kb.remove())

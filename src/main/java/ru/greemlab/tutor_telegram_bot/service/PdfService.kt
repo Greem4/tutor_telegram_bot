@@ -15,6 +15,7 @@ import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 import java.io.File
 import java.nio.file.Files
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Service
 class PdfService {
@@ -32,12 +33,12 @@ class PdfService {
             Document(pdf).use { doc ->
                 val bold = PdfFontFactory.createFont(
                     "/fonts/OpenSans-Bold.ttf",
-                    PdfEncodings.CP1250,
+                    PdfEncodings.IDENTITY_H,
                     PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
                 )
                 val norm = PdfFontFactory.createFont(
                     "/fonts/OpenSans-Regular.ttf",
-                    PdfEncodings.CP1250,
+                    PdfEncodings.IDENTITY_H,
                     PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
                 )
                 doc.setFont(norm).setFontSize(12f)
@@ -49,7 +50,8 @@ class PdfService {
                 )
 
                 doc.add(
-                    Paragraph("ID: $chat | NICK: ${nike ?: "—"} | PHONE: ${phone ?: "—"} | ${LocalDateTime.now()}")
+                    Paragraph(" @${nike ?: "—"} ${LocalDateTime.now().format(
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
                         .setFontSize(8f).setTextAlignment(TextAlignment.RIGHT)
                 )
 
