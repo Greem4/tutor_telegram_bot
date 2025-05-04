@@ -34,8 +34,8 @@ class CaseService(
         if (!s.next()) finish(chat) else ask(chat)
     }
 
-    private suspend fun ask(chat: Long) =
-        sessions[chat]?.current?.let { sender.photo(chat, it.image) }
+    private suspend fun ask(chatId: Long) =
+        sessions[chatId]?.current?.let { sender.photo(chatId, it.image) }
 
     private suspend fun finish(chatId: Long) {
         val cs = sessions.remove(chatId) ?: return
@@ -47,7 +47,6 @@ class CaseService(
         val pdfFile = pdf.build(
             chatId,
             nickName,                               // ник в шапке
-            phone,
             survey.answers(chatId),               // ответы анкеты
             cs.dump(),                          // ответы кейсов
             catalog
@@ -63,8 +62,8 @@ class CaseService(
 
         /* админу */
         adminId?.takeIf { it != chatId }?.let { admin ->
-            sender.document(admin, pdfFile, "📥 Ответы кандидата @$nickName")
+            sender.document(admin, pdfFile, "📥 Ответы кандидата @${nickName ?: chatId}")
         }
-        sender.document(chatId, pdfFile, "📥 Ответы кандидата @$nickName")
+        sender.document(chatId, pdfFile, "📥 Ответы кандидата @${nickName ?: chatId}")
     }
 }

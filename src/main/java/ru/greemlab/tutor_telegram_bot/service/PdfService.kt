@@ -1,7 +1,7 @@
 package ru.greemlab.tutor_telegram_bot.service
 
 import com.itextpdf.io.font.PdfEncodings
-import com.itextpdf.kernel.colors.DeviceGray
+import com.itextpdf.kernel.font.PdfFont
 import com.itextpdf.kernel.font.PdfFontFactory
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
@@ -19,71 +19,153 @@ import java.time.format.DateTimeFormatter
 
 @Service
 class PdfService {
+
     fun build(
         chat: Long,
         nike: String?,
-        phone: String?,
         surveyAns: Map<SurveyQuestion, String>,
         caseAns: Map<Int, String>,
         cat: CaseCatalog,
     ): File {
+
         val file = Files.createTempFile("cases_${chat}_", ".pdf").toFile()
 
         PdfDocument(PdfWriter(file)).use { pdf ->
             Document(pdf).use { doc ->
-                val bold = PdfFontFactory.createFont(
+
+                /* -------- шрифты -------- */
+                val bold: PdfFont = PdfFontFactory.createFont(
                     "/fonts/OpenSans-Bold.ttf",
                     PdfEncodings.IDENTITY_H,
                     PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
                 )
-                val norm = PdfFontFactory.createFont(
+                val norm: PdfFont = PdfFontFactory.createFont(
                     "/fonts/OpenSans-Regular.ttf",
                     PdfEncodings.IDENTITY_H,
                     PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
                 )
                 doc.setFont(norm).setFontSize(12f)
 
+                /* -------- заголовок -------- */
                 doc.add(
                     Paragraph("ОТВЕТЫ ОПРОСНИКА НА ДОЛЖНОСТЬ ТЬЮТОРА")
-                        .setFont(bold).setFontSize(14f)
-                        .setTextAlignment(TextAlignment.CENTER).setUnderline()
+                        .setFont(bold)
+                        .setFontSize(14f)
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setUnderline(1f, 1f)
                 )
 
+                /* ник + дата (справа) */
                 doc.add(
-                    Paragraph(" @${nike ?: "—"} ${LocalDateTime.now().format(
-                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
-                        .setFontSize(8f).setTextAlignment(TextAlignment.RIGHT)
+                    Paragraph(
+                        "@${nike ?: "—"}  ${
+                            LocalDateTime.now().format(
+                                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                            )
+                        }"
+                    )
+                        .setFontSize(8f)
+                        .setTextAlignment(TextAlignment.RIGHT)
+                        .setMarginTop(2f)
                 )
 
+                /* -------- ОПРОС -------- */
+                doc.add(
+                    Paragraph("Опрос")
+                        .setFont(bold)
+                        .setFontSize(12f)
+                        .setMarginTop(12f)
+                        .setMarginBottom(4f)
+                )
 
-                /* --- анкета --- */
-                doc.add(Paragraph("Опрос").setFont(bold).setFontSize(12f).setMarginTop(15f))
-                val table = Table(UnitValue.createPercentArray(floatArrayOf(20f, 200f, 300f))).apply {
-                    addHeaderCell(th("#")); addHeaderCell(th("Вопрос")); addHeaderCell(th("Ответ"))
-                }
+                val table = Table(UnitValue.createPercentArray(floatArrayOf(10f, 50f, 40f)))
+                    .useAllAvailableWidth()
+                    .setFixedLayout()
 
                 SurveyQuestion.entries.forEachIndexed { i, q ->
-                    table.addCell(td("${i + 1}"))
-                    table.addCell(td(q.prompt))
-                    table.addCell(td(surveyAns[q] ?: "—"))
+                    table.addCell(td("${i + 1}", norm))           // #
+                    table.addCell(td(q.label(), norm))            // короткое имя вопроса
+                    table.addCell(td(surveyAns[q] ?: "—", norm))  // ответ кандидата
                 }
                 doc.add(table)
 
-                /* --- кейсы --- */
-                doc.add(Paragraph("Кейсы").setFont(bold).setFontSize(12f).setMarginTop(15f))
+                /* -------- КЕЙСЫ -------- */
+                doc.add(
+                    Paragraph("Кейсы")
+                        .setFont(bold)
+                        .setFontSize(12f)
+                        .setMarginTop(14f)
+                        .setMarginBottom(6f)
+                )
+
                 caseAns.forEach { (idx, answer) ->
-                    val id = cat.byIndex(idx).id
-                    doc.add(Paragraph("КЕЙС №$id").setFont(bold).setMarginTop(10f))
-                    doc.add(Paragraph(answer).setMarginBottom(10f))
+
+                    val case = cat.byIndex(idx)
+
+                    /* заголовок + описание кейса */
+                    doc.add(
+                        Paragraph("КЕЙС №${case.id}")
+                            .setFont(bold)
+                            .setFontSize(12f)
+                    )
+                    doc.add(
+                        Paragraph(case.description)
+                            .setFont(norm)
+                            .setFontSize(12f)
+                    )
+
+                    /* список заданий */
+                    if (case.tasks.isNotEmpty()) {
+                        val tasksList = com.itextpdf.layout.element.List()
+                            .setFont(norm)
+                            .setFontSize(12f)
+                            .setSymbolIndent(12f)
+                            .setMarginLeft(20f)
+                            .setListSymbol("")   // ставим пустой символ ⇒ нумерация автоматически
+
+                        case.tasks.forEach { t ->
+                            tasksList.add(ListItem(t))
+                        }
+                        doc.add(tasksList)
+                    }
+
+                    /* ответ соискателя */
+                    doc.add(
+                        Paragraph("ОТВЕТ СОИСКАТЕЛЯ:")
+                            .setFont(bold)
+                            .setFontSize(12f)
+                            .setMarginTop(8f)
+                    )
+                    doc.add(
+                        Paragraph(answer)
+                            .setFont(norm)
+                            .setFontSize(12f)
+                            .setMarginBottom(10f)
+                    )
                 }
             }
         }
         return file
     }
 
-    private fun th(t: String) = Cell().add(Paragraph(t))
-        .setBackgroundColor(DeviceGray(0.9f))
-        .setTextAlignment(TextAlignment.CENTER)
+    /* -------- утилиты ячеек -------- */
+    private fun td(text: String, font: PdfFont) = Cell()
+        .add(Paragraph(text).setFont(font).setFontSize(12f))
+        .setPadding(4f)
 
-    private fun td(t: String) = Cell().add(Paragraph(t))
+    /* ---------------------------------------------------------------------- */
+    /*  Мапа «вопрос → короткое название»                                    */
+    /* ---------------------------------------------------------------------- */
+    private fun SurveyQuestion.label(): String = when (this) {
+        SurveyQuestion.FULL_NAME       -> "ФИО"
+        SurveyQuestion.LAST_POSITION   -> "Должность на предыдущем месте"
+        SurveyQuestion.YEARS_OF_WORK   -> "Педагогический стаж в школе"
+        SurveyQuestion.COURSES         -> "Курсы (актуальные)"
+        SurveyQuestion.SCHOOL_KNOWLEDGE-> "Знакомы ли с деятельностью школы"
+        SurveyQuestion.READY_TO_COMBINE-> "Тьюторство или совмещение?"
+        SurveyQuestion.TUTOR_QUALITIES -> "Качества тьютора по мнению соискателя"
+        SurveyQuestion.AGE_GROUP       -> "Предпочт. возраст детей"
+        SurveyQuestion.HOBBIES         -> "Увлечения и хобби"
+        SurveyQuestion.LEARNING_READY  -> "Готовность совершенствоваться"
+    }
 }
