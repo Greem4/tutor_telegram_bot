@@ -17,6 +17,8 @@ class SurveyService(
     /* профиль пользователя (id / nick / phone) хранится отдельно -> нужен CaseService */
     private val profile = ConcurrentHashMap<Long, Triple<Long, String?, String?>>()
 
+    private val completed =  ConcurrentHashMap<Long, Map<SurveyQuestion, String>>()
+
     fun cacheProfile(chat: Long, id: Long, nick: String?, phone: String?) {
         profile[chat] = Triple(id, nick, phone)
     }
@@ -38,7 +40,7 @@ class SurveyService(
     }
 
     fun answers(chat: Long): Map<SurveyQuestion, String> =
-        sessions[chat]?.dump() ?: emptyMap()
+        sessions[chat]?.dump() ?: completed[chat] ?: emptyMap()
 
     /* ------------ логика заданий ------------ */
 
@@ -55,6 +57,10 @@ class SurveyService(
     }
 
     private fun finish(chat: Long) {
+        val session = sessions[chat] ?: return
+
+        completed[chat] = session.dump()
+
         sessions.remove(chat)
         sender.send(
             chat, """
