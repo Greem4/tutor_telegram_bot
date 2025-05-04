@@ -1,0 +1,22 @@
+app:
+  bot:
+    botUsername: ${BOT_USERNAME}
+    botToken: ${TOKEN_BOT}
+    admin_id: ${ADMIN_ID}
+
+  tutor-cases:
+    IMAGE_CASE_1: ${IMAGE_CASE_1}
+    IMAGE_CASE_2: ${IMAGE_CASE_2}
+    IMAGE_CASE_3: ${IMAGE_CASE_3}
+
+spring:
+
+  output:
+    ansi:
+      enabled: always
+
+  config:
+    import: optional:file:.env[.properties]
+
+logging:
+  config: classpath:logback-spring.xml
