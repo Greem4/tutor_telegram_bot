@@ -1,206 +1,228 @@
 package ru.greemlab.tutor_telegram_bot.service
 
-// Импортируем кодировки и шрифты для PDF
 import com.itextpdf.io.font.PdfEncodings
+import com.itextpdf.kernel.colors.ColorConstants
 import com.itextpdf.kernel.font.PdfFont
 import com.itextpdf.kernel.font.PdfFontFactory
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
 import com.itextpdf.kernel.pdf.action.PdfAction
 import com.itextpdf.layout.Document
-import com.itextpdf.layout.element.*
+import com.itextpdf.layout.element.Cell
+import com.itextpdf.layout.element.Link
+import com.itextpdf.layout.element.List
+import com.itextpdf.layout.element.ListItem
+import com.itextpdf.layout.element.Paragraph
 import com.itextpdf.layout.properties.TextAlignment
 import com.itextpdf.layout.properties.UnitValue
-
-// Импортируем аннотацию Spring и наши классы-каталоги и энумы
+import com.itextpdf.layout.properties.VerticalAlignment
 import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
-
-// Импортируем классы для работы с датой/временем и файлами
 import java.io.File
 import java.nio.file.Files
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-@Service  // Объявляем этот класс как Spring-сервис
+@Service
 class PdfService {
 
-    // Основной метод для сборки PDF документа
+    // Параметры стилей для заголовка документа
+    private val TITLE_FONT_SIZE = 12f           // размер шрифта заголовка
+    private val TITLE_UNDERLINE_THICKNESS = 1f   // толщина подчеркивания заголовка
+    private val TITLE_UNDERLINE_OFFSET = -2f     // смещение подчеркивания заголовка
+    private val TITLE_MARGIN_BOTTOM = 8f         // отступ снизу заголовка
+
+    // Базовые параметры стиля для параграфов
+    private val BASE_FONT_SIZE = 11f             // базовый размер шрифта документа
+
     fun build(
-        chat: Long,                              // ID чата, используется в имени временного файла
-        nike: String?,                           // Ник пользователя в Telegram (может быть null)
-        surveyAns: Map<SurveyQuestion, String>,  // Ответы на вопросы опроса
-        caseAns: Map<Int, String>,               // Ответы на кейсы по индексу
-        cat: CaseCatalog,                        // Каталог доступных кейсов
+        chat: Long,
+        nike: String?,
+        surveyAns: Map<SurveyQuestion, String>,
+        caseAns: Map<Int, String>,
+        cat: CaseCatalog
     ): File {
-        // Создаём временный файл с префиксом cases_<chat>_ и суффиксом .pdf
-        val file = Files.createTempFile("cases_${chat}_", ".pdf").toFile()
+        // создаём временный файл
+        val file = Files.createTempFile("cases_\${chat}_", ".pdf").toFile()
 
-        // Инициализируем PdfWriter и PdfDocument для получения low-level PDF API
-        PdfDocument(PdfWriter(file)).use { pdf ->
-            // Оборачиваем PdfDocument в high-level Document для удобного добавления элементов
-            Document(pdf).use { doc ->
+        PdfWriter(file).use { writer ->
+            PdfDocument(writer).use { pdf ->
+                Document(pdf).use { doc ->
 
-                // Загружаем жирный шрифт из ресурсов
-                val bold: PdfFont = PdfFontFactory.createFont(
-                    "/fonts/OpenSans-Bold.ttf",            // Путь к TTF-файлу жирного шрифта
-                    PdfEncodings.IDENTITY_H,                // Кодировка для Unicode
-                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED // Встраивание шрифта в PDF
-                )
-
-                // Загружаем обычный (роман) шрифт из ресурсов
-                val norm: PdfFont = PdfFontFactory.createFont(
-                    "/fonts/OpenSans-Regular.ttf",         // Путь к TTF-файлу обычного шрифта
-                    PdfEncodings.IDENTITY_H,                // Кодировка для Unicode
-                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED // Встраивание шрифта
-                )
-
-                // Устанавливаем шрифт по умолчанию и размер 12
-                doc.setFont(norm).setFontSize(12f)
-
-                // Добавляем заголовок документа
-                doc.add(
-                    Paragraph("ОТВЕТЫ ОПРОСНИКА НА ДОЛЖНОСТЬ ТЬЮТОРА") // Текст заголовка
-                        .setFont(bold)                            // Применяем жирный шрифт
-                        .setFontSize(14f)                         // Устанавливаем размер 14
-                        .setTextAlignment(TextAlignment.CENTER)   // Центруем по ширине страницы
-                        .setUnderline(2f, -3f)                   // Подчёркивание толщиной 2, смещено вниз на 3 единицы
-                )
-
-                // Формируем строку с датой/временем
-                val formattedDate = LocalDateTime.now()
-                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) // Форматируем дату
-
-                // Если есть ник, создаём кликабельную ссылку на профиль Telegram
-                if (!nike.isNullOrBlank()) {
-                    // Создаём ссылку @ник -> https://t.me/ник
-                    val tgLink = Link(
-                        "@${nike}",
-                        PdfAction.createURI("https://t.me/${nike}")
+                    // Загружаем шрифты
+                    val bold: PdfFont = PdfFontFactory.createFont(
+                        "/fonts/OpenSans-Bold.ttf",            // путь к файлу полужирного шрифта
+                        PdfEncodings.IDENTITY_H,               // кодировка
+                        PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED // стратегия встраивания шрифта
                     )
-                        .setFont(bold)                        // Жирный шрифт для ссылки
-                        .setFontSize(14f)                     // Размер 14
-                        .setFontColor(com.itextpdf.kernel.colors.ColorConstants.BLUE) // Синий цвет
-                        .setUnderline()                       // Подчёркивание
+                    val regular: PdfFont = PdfFontFactory.createFont(
+                        "/fonts/OpenSans-Regular.ttf",        // путь к файлу обычного шрифта
+                        PdfEncodings.IDENTITY_H,               // кодировка
+                        PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED // стратегия встраивания
+                    )
 
-                    // Собираем параграф: "Кандидат @ник от: дата"
+                    // Устанавливаем базовый шрифт и размер для всего документа
+                    doc.setFont(regular)                    // задаём шрифт документа
+                        .setFontSize(BASE_FONT_SIZE)        // задаём размер шрифта документа
+
+                    // ——— Заголовок документа ———
                     doc.add(
-                        Paragraph()
-                            .add("Кандидат ")
-                            .add(tgLink)
-                            .add(" от: $formattedDate")
-                            .setFont(norm)                      // Обычный шрифт для остального текста
-                            .setFontSize(14f)                   // Размер 14
-                            .setTextAlignment(TextAlignment.RIGHT) // Выравнивание по правому краю
-                            .setMarginTop(2f)                   // Отступ сверху
-                    )
-                } else {
-                    // Если ника нет, выводим только дату
-                    doc.add(
-                        Paragraph("От: $formattedDate")
-                            .setFont(norm)
-                            .setFontSize(14f)
-                            .setTextAlignment(TextAlignment.RIGHT)
-                            .setMarginTop(2f)
-                    )
-                }
-
-                // Добавляем заголовок секции "Опрос"
-                doc.add(
-                    Paragraph("Опрос")                          // Текст заголовка секции
-                        .setFont(bold)                            // Жирный шрифт
-                        .setFontSize(12f)                         // Размер 12
-                        .setTextAlignment(TextAlignment.CENTER)   // Центровка
-                        .setMarginTop(12f)                        // Отступ сверху
-                        .setMarginBottom(4f)                      // Отступ снизу
-                )
-
-                // Создаём таблицу для отображения опроса
-                val surveyTable = Table(UnitValue.createPercentArray(floatArrayOf(10f, 50f, 40f)))
-                    .useAllAvailableWidth()                  // Тянем таблицу на всю ширину документа
-                    .setFixedLayout()                        // Фиксируем ширину столбцов
-
-                // Заполняем таблицу: номер | вопрос | ответ
-                SurveyQuestion.entries.forEachIndexed { i, q ->
-                    surveyTable.addCell(td("${i + 1}", norm))           // Номер вопроса
-                    surveyTable.addCell(td(q.label(), norm))              // Текст вопроса
-                    surveyTable.addCell(
-                        Cell().add(
-                            Paragraph(surveyAns[q] ?: "—")           // Ответ или дефис
-                                .setFont(bold)                          // Жирный шрифт для ответа
-                                .setFontSize(11f)                       // Размер 11
-                        ).setPadding(4f)                               // Отступ внутри ячейки
-                    )
-                }
-                doc.add(surveyTable)  // Прикрепляем таблицу к документу
-
-                // Заголовок секции "Кейсы"
-                doc.add(
-                    Paragraph("Кейсы")                          // Текст заголовка
-                        .setFont(bold)                            // Жирный шрифт
-                        .setFontSize(12f)                         // Размер 12
-                        .setTextAlignment(TextAlignment.CENTER)   // Центровка
-                        .setMarginTop(14f)                        // Отступ сверху
-                        .setMarginBottom(6f)                      // Отступ снизу
-                )
-
-                // Проходим по каждому кейсу
-                caseAns.forEach { (idx, answer) ->
-                    val case = cat.byIndex(idx)                    // Получаем кейс по индексу
-
-                    // Заголовок кейса
-                    doc.add(
-                        Paragraph("КЕЙС №${case.id}")           // "КЕЙС №<id>"
-                            .setFont(bold)                          // Жирный шрифт
-                            .setFontSize(12f)                       // Размер 12
+                        Paragraph("ОТВЕТЫ ОПРОСНИКА НА ДОЛЖНОСТЬ ТЬЮТОРА") // текст заголовка
+                            .setFont(bold)                              // используем полужирный шрифт
+                            .setFontSize(TITLE_FONT_SIZE)               // размер шрифта заголовка
+                            .setTextAlignment(TextAlignment.CENTER)      // выравнивание по центру
+                            .setUnderline(
+                                TITLE_UNDERLINE_THICKNESS,               // толщина подчеркивания
+                                TITLE_UNDERLINE_OFFSET                   // смещение подчеркивания
+                            )
+                            .setMarginBottom(TITLE_MARGIN_BOTTOM)       // отступ снизу заголовка
                     )
 
-                    // Описание кейса
-                    doc.add(
-                        Paragraph(case.description)              // Текст описания
-                            .setFont(norm)                        // Обычный шрифт
-                            .setFontSize(12f)                     // Размер 12
-                    )
+                    // Текущая дата и время в формате yyyy-MM-dd HH:mm
+                    val formattedDate = LocalDateTime.now()
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 
-                    // Если есть задания — список
-                    if (case.tasks.isNotEmpty()) {
-                        val tasksList = List()
-                            .setFont(norm)
-                            .setFontSize(12f)
-                            .setSymbolIndent(12f)
-                            .setMarginLeft(20f)
-                            .setListSymbol("")
-                        case.tasks.forEach { t -> tasksList.add(ListItem(t)) }
-                        doc.add(tasksList)
+                    // ——— Ник пользователя и дата ———
+                    if (!nike.isNullOrBlank()) {
+                        // создаём ссылку на телеграм-аккаунт
+                        val tgLink = Link("@$nike", PdfAction.createURI("https://t.me/$nike"))
+                            .setFont(bold)                          // делаем ссылку полужирной
+                            .setFontSize(BASE_FONT_SIZE)           // размер шрифта ссылки
+                            .setFontColor(ColorConstants.BLUE)     // синий цвет текста
+                            .setUnderline()                        // подчёркивание ссылки
+
+                        doc.add(
+                            Paragraph()
+                                .add("Кандидат ")               // префикс текста
+                                .add(tgLink)                     // вставляем ссылку
+                                .add(" от: $formattedDate")    // дата и время
+                                .setFont(regular)                // возвращаем обычный шрифт
+                                .setFontSize(BASE_FONT_SIZE)     // размер шрифта — базовый
+                                .setTextAlignment(TextAlignment.RIGHT) // выравнивание справа
+                                .setMarginBottom(12f)            // отступ снизу блока
+                        )
+                    } else {
+                        doc.add(
+                            Paragraph("От: $formattedDate")   // если ника нет, выводим только дату
+                                .setFont(regular)                // обычный шрифт
+                                .setFontSize(BASE_FONT_SIZE)     // базовый размер шрифта
+                                .setTextAlignment(TextAlignment.RIGHT) // выравнивание справа
+                                .setMarginBottom(12f)            // отступ снизу блока
+                        )
                     }
 
-                    // Заголовок ответа соискателя
+                    // ——— Секция «Опрос» ———
                     doc.add(
-                        Paragraph("ОТВЕТ СОИСКАТЕЛЯ:")           // Текст заголовка
-                            .setFont(bold)                        // Жирный шрифт
-                            .setFontSize(12f)                     // Размер 12
-                            .setMarginTop(8f)                     // Отступ сверху
+                        Paragraph("Опрос")                   // заголовок секции
+                            .setFont(bold)                     // полужирный шрифт
+                            .setFontSize(BASE_FONT_SIZE)       // размер — базовый
+                            .setTextAlignment(TextAlignment.CENTER) // по центру
+                            .setMarginBottom(4f)               // отступ снизу секции
                     )
 
-                    // Текст ответа
+                    // Таблица ответов опроса с колонками 8% / 50% / 42%
+                    val surveyTable = com.itextpdf.layout.element.Table(
+                        UnitValue.createPercentArray(floatArrayOf(8f, 50f, 42f))
+                    ).useAllAvailableWidth()
+                        .setFixedLayout()                       // фиксированная раскладка колонок
+
+                    SurveyQuestion.entries.forEachIndexed { idx, question ->
+                        surveyTable.addCell(td("${idx + 1}", regular))                // № вопроса
+                        surveyTable.addCell(td(question.label(), regular))             // текст вопроса
+                        surveyTable.addCell(tdAnswer(surveyAns[question] ?: "—", bold)) // ответ (полужирный)
+                    }
+
+                    doc.add(surveyTable) // добавляем таблицу в документ
+
+                    // ——— Секция «Кейсы» ———
                     doc.add(
-                        Paragraph(answer)                       // Ответ соискателя
-                            .setFont(norm)                        // Обычный шрифт
-                            .setFontSize(12f)                     // Размер 12
-                            .setMarginBottom(10f)                 // Отступ снизу
+                        Paragraph("Кейсы")                    // заголовок секции
+                            .setFont(bold)                      // полужирный шрифт
+                            .setFontSize(BASE_FONT_SIZE)        // базовый размер шрифта
+                            .setTextAlignment(TextAlignment.CENTER) // по центру
+                            .setMarginTop(12f)                  // отступ сверху секции
+                            .setMarginBottom(6f)                // отступ снизу секции
                     )
+
+                    // Проходим по каждому кейсу и выводим описание и ответ
+                    caseAns.forEach { (idx, answer) ->
+                        val kase = cat.byIndex(idx)
+
+                        // Заголовок кейса
+                        doc.add(
+                            Paragraph("КЕЙС №${kase.id}")     // номер кейса
+                                .setFont(bold)                  // полужирный шрифт
+                                .setFontSize(BASE_FONT_SIZE)    // базовый размер
+                                .setMarginBottom(2f)            // отступ снизу
+                        )
+
+                        // Описание кейса
+                        doc.add(
+                            Paragraph(kase.description)       // текст описания
+                                .setFont(regular)              // обычный шрифт
+                                .setFontSize(BASE_FONT_SIZE)   // базовый размер
+                                .setMarginBottom(4f)           // отступ снизу
+                        )
+
+                        // Список заданий внутри кейса (если есть)
+                        if (kase.tasks.isNotEmpty()) {
+                            val tasksList = List()
+                                .setFont(regular)            // обычный шрифт для списка
+                                .setFontSize(BASE_FONT_SIZE) // базовый размер
+                                .setSymbolIndent(12f)        // отступ перед символом списка
+                                .setListSymbol("")         // без символа списка
+                                .setMarginLeft(20f)          // отступ слева
+                                .setMarginBottom(4f)         // отступ снизу списка
+
+                            kase.tasks.forEach { task ->
+                                tasksList.add(ListItem(task)) // добавляем пункт списка
+                            }
+                            doc.add(tasksList)              // добавляем список в документ
+                        }
+
+                        // Заголовок раздела «Ответ соискателя»
+                        doc.add(
+                            Paragraph("ОТВЕТ СОИСКАТЕЛЯ:")   // текст заголовка раздела
+                                .setFont(bold)                  // полужирный шрифт
+                                .setFontSize(BASE_FONT_SIZE)    // базовый размер
+                                .setMarginBottom(2f)            // отступ снизу
+                        )
+
+                        // Ответ соискателя
+                        doc.add(
+                            Paragraph(answer)               // текст ответа кандидата
+                                .setFont(regular)            // обычный шрифт
+                                .setFontSize(BASE_FONT_SIZE) // базовый размер
+                                .setMarginBottom(8f)         // отступ снизу
+                        )
+                    }
                 }
             }
         }
 
-        return file // Возвращаем PDF-файл
+        return file // возвращаем сгенерированный PDF-файл
     }
 
-    // Утилита для создания ячейки таблицы
-    private fun td(text: String, font: PdfFont) = Cell()
-        .add(Paragraph(text).setFont(font).setFontSize(12f)) // Текст с размером 12
-        .setPadding(4f)                                      // Внутренний отступ
+    /** Утилита для обычной ячейки таблицы */
+    private fun td(text: String, font: PdfFont): Cell =
+        Cell()
+            .add(Paragraph(text)
+                .setFont(font)              // шрифт текста ячейки
+                .setFontSize(BASE_FONT_SIZE) // размер текста
+            )
+            .setPadding(2f)                // отступ внутри ячейки
+            .setVerticalAlignment(VerticalAlignment.MIDDLE) // выравнивание по вертикали
+
+    /** Утилита для ячейки-ответа (жирный текст) */
+    private fun tdAnswer(text: String, font: PdfFont): Cell =
+        Cell()
+            .add(Paragraph(text)
+                .setFont(font)               // шрифт текста (жирный)
+                .setFontSize(BASE_FONT_SIZE) // размер текста
+            )
+            .setPadding(2f)                // отступ внутри ячейки
+            .setVerticalAlignment(VerticalAlignment.MIDDLE) // выравнивание по вертикали
 
     // Маппинг SurveyQuestion → читабельный лейбл
     private fun SurveyQuestion.label(): String = when (this) {
