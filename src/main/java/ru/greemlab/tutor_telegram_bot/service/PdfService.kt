@@ -37,14 +37,14 @@ class PdfService {
     private val BASE_FONT_SIZE = 11f             // базовый размер шрифта документа
 
     fun build(
-        chat: Long,
+        chatId: Long,
         nike: String?,
         surveyAns: Map<SurveyQuestion, String>,
         caseAns: Map<Int, String>,
         cat: CaseCatalog
     ): File {
         // создаём временный файл
-        val file = Files.createTempFile("cases_\${chat}_", ".pdf").toFile()
+        val file = Files.createTempFile("cases_@${nike ?: chatId}_", ".pdf").toFile()
 
         PdfWriter(file).use { writer ->
             PdfDocument(writer).use { pdf ->
