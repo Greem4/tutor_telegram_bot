@@ -18,7 +18,6 @@ class CallbackHandler(
                 chat  = q.message.chatId,
                 userId = q.from.id,
                 nick   = q.from.userName,
-                phone  = null
             )
 
         CallbackType.START_CASES  ->
@@ -26,7 +25,6 @@ class CallbackHandler(
                 chat   = q.message.chatId,
                 userId = q.from.id,
                 nick   = q.from.userName,
-                phone  = null
             )
 
         null -> Unit

@@ -5,7 +5,6 @@ import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 class SurveySession(
     val userId : Long,
     val nick   : String?,
-    var phone  : String?,
 ) {
     private var i = 0
     private val answers = linkedMapOf<SurveyQuestion, String>()

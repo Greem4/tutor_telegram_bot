@@ -22,9 +22,9 @@ class CaseService(
         sessions.remove(chat)
     }
 
-    suspend fun start(chat: Long, userId: Long, nick: String?, phone: String?) {
+    suspend fun start(chat: Long, userId: Long, nick: String?) {
         sessions[chat] = CaseSession(catalog)
-        survey.cacheProfile(chat, userId, nick, phone)
+        survey.cacheProfile(chat, userId, nick)
         ask(chat)
     }
 
@@ -41,7 +41,7 @@ class CaseService(
         val cs = sessions.remove(chatId) ?: return
 
         /* профиль кандидата */
-        val (id, nickName, phone) = survey.profile(chatId) ?: Triple(chatId, null, null)
+        val (id, nickName) = survey.profile(chatId) ?: Pair(chatId, null)
 
         /* -------- PDF -------- */
         val pdfFile = pdf.build(

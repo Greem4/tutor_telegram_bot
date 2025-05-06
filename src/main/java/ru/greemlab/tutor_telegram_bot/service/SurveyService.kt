@@ -15,19 +15,19 @@ class SurveyService(
     private val sessions = ConcurrentHashMap<Long, SurveySession>()
 
     /* профиль пользователя (id / nick / phone) хранится отдельно -> нужен CaseService */
-    private val profile = ConcurrentHashMap<Long, Triple<Long, String?, String?>>()
+    private val profile = ConcurrentHashMap<Long, Pair<Long, String?>>()
 
-    private val completed =  ConcurrentHashMap<Long, Map<SurveyQuestion, String>>()
+    private val completed = ConcurrentHashMap<Long, Map<SurveyQuestion, String>>()
 
-    fun cacheProfile(chat: Long, id: Long, nick: String?, phone: String?) {
-        profile[chat] = Triple(id, nick, phone)
+    fun cacheProfile(chat: Long, id: Long, nick: String?) {
+        profile[chat] = Pair(id, nick)
     }
 
-    fun profile(chat: Long): Triple<Long, String?, String?>? = profile[chat]
+    fun profile(chat: Long): Pair<Long, String?>? = profile[chat]
 
-     fun start(chat: Long, userId: Long, nick: String?, phone: String?) {
-        sessions[chat] = SurveySession(userId, nick, phone)
-        cacheProfile(chat, userId, nick, phone)
+    fun start(chat: Long, userId: Long, nick: String?) {
+        sessions[chat] = SurveySession(userId, nick)
+        cacheProfile(chat, userId, nick)
         ask(chat)
     }
 
@@ -46,11 +46,11 @@ class SurveyService(
 
     private fun ask(chat: Long) {
         sessions[chat]?.let {                      //TODO вкл кнопку отмены
-            sender.send(chat, it.current.prompt, /*kb.cancel()*/ )
+            sender.send(chat, it.current.prompt /*kb.cancel()*/)
         }
     }
 
-     fun answer(chat: Long, txt: String) {
+    fun answer(chat: Long, txt: String) {
         val s = sessions[chat] ?: return
         s.answer(txt)
         if (s.next()) ask(chat) else finish(chat)
@@ -64,9 +64,11 @@ class SurveyService(
         sessions.remove(chat)
         sender.send(
             chat, """
-            👏 Вы прошли 1‑й этап!
-            ➡ Впереди 2‑й этап— кейсы (3шт, ≈30мин).
-            Нажмите кнопку ниже, чтобы продолжить.
+            👏 Вы прошли 1 этап опросника на должность тьютора.
+            ➡Впереди 2 этап - кейсы.
+            Всего будет 3 кейса. 
+            ⏱Примерное время ответа на кейсы - 30 мин. 
+            Для продолжения нажмите ниже👇
         """.trimIndent(), kb.beginCases()
         )
     }
