@@ -28,6 +28,15 @@ class KeyboardService {
                 }
             )))
 
+    fun abortTutor(): InlineKeyboardMarkup =
+        InlineKeyboardMarkup(
+            listOf(
+                listOf(
+                    InlineKeyboardButton("Тьютор школы \"НИКА\" 🧑‍🏫").apply {
+                        url = "https://dzen.ru/a/YoiHHN4ARmo3pjsO"
+                    }
+                )))
+
     fun cancel(): ReplyKeyboardMarkup =
         ReplyKeyboardMarkup(listOf(KeyboardRow().apply { add(UserCommand.CANCEL.text) })).apply {
             resizeKeyboard = true
