@@ -20,12 +20,22 @@ class SenderService(private val events: ApplicationEventPublisher) {
     fun send(chat: Long, text: String, kb: ReplyKeyboard? = null) =
         scope.launch { events.publishEvent(OutgoingMessage(chat, text, kb)) }
 
-    fun photo(chat: Long, url: String) =
-        scope.launch { events.publishEvent(SendPhoto(chat.toString(), InputFile(url))) }
+    fun photo(chat: Long, url: String, kb: ReplyKeyboard? = null) =
+        scope.launch {
+            events.publishEvent(
+                SendPhoto().apply {
+                    chatId = chat.toString()
+                    photo = InputFile(url)
+                    replyMarkup = kb
+                })
+        }
+
 
     fun document(chat: Long, file: File, caption: String) =
-        scope.launch { events.publishEvent(SendDocument().apply {
-            chatId   = chat.toString(); this.document = InputFile(file)
-            this.caption = caption; parseMode = "HTML"
-        }) }
+        scope.launch {
+            events.publishEvent(SendDocument().apply {
+                chatId = chat.toString(); this.document = InputFile(file)
+                this.caption = caption; parseMode = "HTML"
+            })
+        }
 }
