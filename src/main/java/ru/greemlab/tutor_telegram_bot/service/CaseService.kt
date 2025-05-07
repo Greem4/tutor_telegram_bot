@@ -28,7 +28,7 @@ class CaseService(
      * Старт второго этапа — кейсов.
      * _userId и _nick нужны только для сигнатуры, профиль берём из SurveyService
      */
-    suspend fun start(chatId: Long, userId: Long, nick: String?) {
+    suspend fun start(chatId: Long) {
         // Получаем пользователя из кэша первого этапа
         val user: TelegramUser = surveyService.takeProfile(chatId)
             ?: run {

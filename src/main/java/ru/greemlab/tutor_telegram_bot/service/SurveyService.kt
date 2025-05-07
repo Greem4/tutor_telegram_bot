@@ -4,7 +4,6 @@ package ru.greemlab.tutor_telegram_bot.service
 import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.entity.SurveyAnswer
 import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
-import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.SurveySession
