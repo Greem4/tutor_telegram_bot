@@ -15,14 +15,14 @@ class CallbackHandler(
     suspend fun handle(q: CallbackQuery) = when (CallbackType.from(q.data)) {
         CallbackType.START_SURVEY ->
             survey.start(
-                chat  = q.message.chatId,
+                chatId  = q.message.chatId,
                 userId = q.from.id,
                 nick   = q.from.userName,
             )
 
         CallbackType.START_CASES  ->
             cases.start(
-                chat   = q.message.chatId,
+                chatId   = q.message.chatId,
                 userId = q.from.id,
                 nick   = q.from.userName,
             )

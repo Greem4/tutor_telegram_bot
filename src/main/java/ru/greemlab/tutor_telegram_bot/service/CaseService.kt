@@ -3,6 +3,11 @@ package ru.greemlab.tutor_telegram_bot.service
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
+import ru.greemlab.tutor_telegram_bot.entity.CaseAnswer
+import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
+import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
+import ru.greemlab.tutor_telegram_bot.repository.CaseAnswerRepository
+import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.session.CaseSession
 import java.util.concurrent.ConcurrentHashMap
 
@@ -13,43 +18,95 @@ class CaseService(
     private val sender: SenderService,
     private val kb: KeyboardService,
     private val pdf: PdfService,
-    private val survey: SurveyService,
+    private val surveyService: SurveyService,
+    private val surveyAnswerRepo: SurveyAnswerRepository,
+    private val caseAnswerRepo: CaseAnswerRepository,
 ) {
     private val sessions = ConcurrentHashMap<Long, CaseSession>()
 
-    fun active(chat: Long) = sessions.containsKey(chat)
-    fun cancel(chat: Long) {
-        sessions.remove(chat)
+    /**
+     * Старт второго этапа — кейсов.
+     * _userId и _nick нужны только для сигнатуры, профиль берём из SurveyService
+     */
+    suspend fun start(chatId: Long, userId: Long, nick: String?) {
+        // Получаем пользователя из кэша первого этапа
+        val user: TelegramUser = surveyService.takeProfile(chatId)
+            ?: run {
+                sender.send(chatId, "Сначала пройдите опросник.", kb.start())
+                return
+            }
+
+        if (user.casesCompleted) {
+            sender.send(chatId, "Вы уже завершили кейсы ранее.", kb.remove())
+            return
+        }
+
+        sessions[chatId] = CaseSession(user, catalog)
+        askNext(chatId)
     }
 
-    suspend fun start(chat: Long, userId: Long, nick: String?) {
-        sessions[chat] = CaseSession(catalog)
-        survey.cacheProfile(chat, userId, nick)
-        ask(chat)
+    fun active(chatId: Long): Boolean =
+        sessions.containsKey(chatId)
+
+    fun cancel(chatId: Long) {
+        sessions.remove(chatId)
     }
 
-    suspend fun answer(chat: Long, txt: String) {
-        val s = sessions[chat] ?: return
-        s.answer(txt)
-        if (!s.next()) finish(chat) else ask(chat)
+    suspend fun answer(chatId: Long, text: String) {
+        val session = sessions[chatId] ?: return
+        session.answer(text)
+
+        if (session.next()) {
+            askNext(chatId)
+        } else {
+            finish(chatId, session)
+        }
     }
 
-    private suspend fun ask(chatId: Long) =
-        sessions[chatId]?.current?.let { sender.photo(chatId, it.image) }
+    private suspend fun askNext(chatId: Long) {
+        val kase = sessions[chatId]?.current ?: return
 
-    private suspend fun finish(chatId: Long) {
-        val cs = sessions.remove(chatId) ?: return
+        sender.photo(chatId, kase.image)
 
-        /* профиль кандидата */
-        val (id, nickName) = survey.profile(chatId) ?: Pair(chatId, null)
+        val tasksText = if (kase.tasks.isNotEmpty()) {
+            kase.tasks.joinToString("\n", prefix = "\n") { "• $it" }
+        } else ""
+        val prompt = "${kase.description}$tasksText\n\nВаш ответ:"
+        sender.send(chatId, prompt, kb.cancel())
+    }
 
-        /* -------- PDF -------- */
+    private suspend fun finish(chatId: Long, session: CaseSession) {
+        // 1) сохраняем ответы кейсов
+        session.dump().forEach { (idx, answer) ->
+            caseAnswerRepo.save(
+                CaseAnswer(
+                    user = session.user,
+                    caseIndex = idx,
+                    answer = answer
+                )
+            )
+        }
+        // 2) ставим флаг и сохраняем пользователя
+        session.user.apply { casesCompleted = true }
+            .also { surveyService.updateUser(it) }
+        sessions.remove(chatId)
+
+        // 3) собираем ответы опроса первого этапа правильно
+        val surveyAnswers: Map<SurveyQuestion, String> =
+            surveyAnswerRepo.findByUser(session.user)
+                .associate { it.question to it.answer }
+
+        // 4) собираем ответы кейсов
+        val caseAnswers: Map<Int, String> = session.dump()
+
+        // 5) генерируем PDF
+        val nick = session.user.username
         val pdfFile = pdf.build(
-            chatId,
-            nickName,                               // ник в шапке
-            survey.answers(chatId),               // ответы анкеты
-            cs.dump(),                          // ответы кейсов
-            catalog
+            chatId    = chatId,
+            nike      = nick,
+            surveyAns = surveyAnswers,  // теперь тип совпадает
+            caseAns   = caseAnswers,
+            cat       = catalog
         )
 
         /* кандидату */
@@ -67,10 +124,8 @@ class CaseService(
         """.trimIndent(), kb.abortTutor()
         )
 
-        /* админу */
-        adminId?.takeIf { it != chatId }?.let { admin ->
-            sender.document(admin, pdfFile, "📥 Ответы кандидата @${nickName ?: chatId}")
+        adminId?.let { admin ->
+            sender.document(admin, pdfFile, "📥 Ответы кандидата @${nick ?: chatId}")
         }
-        sender.document(chatId, pdfFile, "📥 Ответы кандидата @${nickName ?: chatId}")
     }
 }
