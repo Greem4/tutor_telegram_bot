@@ -33,6 +33,14 @@ class CaseService(
      */
     suspend fun start(chatId: Long) {
         log.debug("Start cases for chatId={}", chatId)
+
+        // 1) Если сессия уже активна — возобновляем её
+        sessions[chatId]?.let {
+            log.debug("Resuming existing survey session for chatId={}", chatId)
+            askNext(chatId)  // отправляем текущий вопрос
+            return
+        }
+
         val user: TelegramUser = surveyService.takeProfile(chatId)
             ?: run {
                 log.warn(

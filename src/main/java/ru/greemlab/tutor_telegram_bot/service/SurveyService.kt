@@ -26,6 +26,15 @@ class SurveyService(
     /** Старт первого этапа — опроса */
     fun start(chatId: Long, userId: Long, nick: String?) {
         log.debug("Starting survey for chatId={}, userId={}, nick={}", chatId, userId, nick)
+
+        // 1) Если сессия уже активна — возобновляем её
+        sessions[chatId]?.let {
+            log.debug("Resuming existing survey session for chatId={}", chatId)
+            askNext(chatId)  // отправляем текущий вопрос
+            return
+        }
+
+        // 2) Иначе загружаем или создаём пользователя
         val user = userRepo.findByTelegramId(userId)
             .orElseGet {
                 val newUser = TelegramUser(telegramId = userId, username = nick)
@@ -33,13 +42,13 @@ class SurveyService(
                     log.debug("Created new TelegramUser id={} telegramId={}", it.id, it.telegramId)
                 }
             }
-
+        // 3) Если опрос уже пройден — отказываем в рестарте
         if (user.surveyCompleted) {
             log.warn("User {} already completed survey; refusing to restart", user.telegramId)
             sender.send(chatId, "Вы уже проходили опрос. Повторно нельзя.", kb.remove())
             return
         }
-
+        // 4) Иначе создаём новую сессию и начинаем
         sessions[chatId] = SurveySession(user)
         profileCache[chatId] = user
         log.debug("Created SurveySession for chatId={}, total sessions={}", chatId, sessions.size)
