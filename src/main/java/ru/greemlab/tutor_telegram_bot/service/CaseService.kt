@@ -1,6 +1,6 @@
 package ru.greemlab.tutor_telegram_bot.service
 
-// Импорт необходимых компонентов
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
@@ -9,10 +9,11 @@ import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 import ru.greemlab.tutor_telegram_bot.repository.CaseAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
+import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.CaseSession
 import java.util.concurrent.ConcurrentHashMap
 
-@Service // Аннотация Spring, обозначающая сервисный слой
+@Service
 class CaseService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?, // ID администратора из конфигурации
     private val catalog: CaseCatalog, // Каталог кейсов
@@ -22,75 +23,93 @@ class CaseService(
     private val surveyService: SurveyService, // Сервис, управляющий анкетой
     private val surveyAnswerRepo: SurveyAnswerRepository, // Репозиторий ответов анкеты
     private val caseAnswerRepo: CaseAnswerRepository, // Репозиторий ответов на кейсы
+    private val userRepo: TelegramUserRepository //TODO к проду удалить
 ) {
-    private val sessions = ConcurrentHashMap<Long, CaseSession>() // Хранилище активных сессий кейсов по chatId
+    private val log = LoggerFactory.getLogger(javaClass)
+    private val sessions = ConcurrentHashMap<Long, CaseSession>()
 
     /**
-     * Метод запуска этапа кейсов.
-     * Получает пользователя, проверяет, проходил ли он кейсы ранее,
-     * и запускает новую сессию с кейсами.
+     * Запуск 2-го этапа — кейсов.
      */
     suspend fun start(chatId: Long) {
-        // Получаем пользователя из опросной части
+        log.debug("Start cases for chatId={}", chatId)
         val user: TelegramUser = surveyService.takeProfile(chatId)
             ?: run {
-                // Если не найден, просим сначала пройти опросник
+                log.warn(
+                    "Profile not found for chatId={}, asking to complete survey first",
+                    chatId
+                )
                 sender.send(chatId, "Сначала пройдите опросник.", kb.start())
                 return
             }
 
-        // Проверка: если пользователь уже прошёл кейсы, не запускаем заново
         if (user.casesCompleted) {
+            log.debug(
+                "User {} has already completed cases, skipping start",
+                user.telegramId
+            )
             sender.send(chatId, "Вы уже завершили кейсы ранее.", kb.remove())
             return
         }
 
-        // Создаём новую сессию с кейсами и сохраняем её
         sessions[chatId] = CaseSession(user, catalog)
-        askNext(chatId) // Показываем первый кейс
+        log.debug(
+            "Created CaseSession for chatId={}, total sessions={}",
+            chatId,
+            sessions.size
+        )
+        askNext(chatId)
     }
 
-    // Проверка, активна ли сессия кейсов у пользователя
     fun active(chatId: Long): Boolean =
         sessions.containsKey(chatId)
 
-    // Отмена прохождения кейсов — удаление сессии
     fun cancel(chatId: Long) {
+        log.debug("Canceling cases for chatId={}", chatId)
         sessions.remove(chatId)
     }
 
-    /**
-     * Метод обработки ответа пользователя на кейс.
-     * Переходит к следующему кейсу или завершает прохождение.
-     */
     suspend fun answer(chatId: Long, text: String) {
-        val session = sessions[chatId] ?: return // Если сессии нет — игнор
-        session.answer(text) // Сохраняем ответ
+        log.debug("Received answer for chatId={}: {}", chatId, text)
+        val session = sessions[chatId] ?: run {
+            log.warn("No active CaseSession for chatId={}, ignoring answer", chatId)
+            return
+        }
 
-        if (session.next()) { // Если есть ещё кейсы — следующий
+        session.answer(text)
+        if (session.next()) {
+            log.debug("Moving to next case for chatId={}", chatId)
             askNext(chatId)
         } else {
-            finish(chatId, session) // Если кейсы закончились — финал
+            log.debug("All cases answered for chatId={}, finishing", chatId)
+            finish(chatId, session)
         }
     }
 
-    // Отправка пользователю следующего кейса
     private suspend fun askNext(chatId: Long) {
-        val kase = sessions[chatId]?.current ?: return // Получаем текущий кейс
-
+        val kase = sessions[chatId]?.current ?: return
+        log.debug("Asking case #{} to chatId={}", kase.id, chatId)
         sender.photo(chatId, kase.image, kb.cancel())
-
     }
 
     /**
-     * Завершение этапа кейсов:
-     * - Сохраняем ответы
-     * - Обновляем пользователя
-     * - Генерируем PDF
-     * - Отправляем пользователю и администратору
-     */
+     * Сбрасывает все данные кейсов и флаг в БД.
+     */   //TODO к проду удалить 
+    fun reset(chatId: Long) {
+        log.debug("Resetting survey for chatId={}", chatId)
+        sessions.remove(chatId)
+        // 2) Загружаем пользователя из БД
+        userRepo.findByTelegramId(chatId)
+            .ifPresent { user ->
+                user.casesCompleted = false
+                userRepo.save(user)
+                log.debug("surveyCompleted flag reset in DB for telegramId={}", user.telegramId)
+            }
+    }
+
     private suspend fun finish(chatId: Long, session: CaseSession) {
-        // 1) Сохраняем ответы на кейсы в базу
+        log.debug("Finishing cases for chatId={}", chatId)
+        // 1) сохраняем ответы
         session.dump().forEach { (idx, answer) ->
             caseAnswerRepo.save(
                 CaseAnswer(
@@ -99,53 +118,51 @@ class CaseService(
                     answer = answer
                 )
             )
+            log.debug("Saved CaseAnswer idx={} for user={}", idx, session.user.telegramId)
         }
 
-        // 2) Обновляем пользователя — ставим флаг о завершении кейсов
+        // 2) отмечаем
         session.user.apply { casesCompleted = true }
             .also { surveyService.updateUser(it) }
+        log.debug("casesCompleted flag set to true for user={}", session.user.telegramId)
 
-        // 3) Удаляем сессию из памяти
         sessions.remove(chatId)
 
-        // 4) Получаем ответы из анкеты
+        // 3) собираем ответы 1-го этапа
         val surveyAnswers: Map<SurveyQuestion, String> =
             surveyAnswerRepo.findByUser(session.user)
                 .associate { it.question to it.answer }
+        log.debug(
+            "Loaded {} survey answers for user={}",
+            surveyAnswers.size,
+            session.user.telegramId
+        )
 
-        // 5) Получаем ответы на кейсы
-        val caseAnswers: Map<Int, String> = session.dump()
+        // 4) ответы по кейсам
+        val caseAnswers = session.dump()
 
-        // 6) Генерируем PDF файл с результатами
+        // 5) генерируем PDF
         val nick = session.user.username
         val pdfFile = pdf.build(
-            chatId    = chatId,
-            nike      = nick,
+            chatId = chatId,
+            nike = nick,
             surveyAns = surveyAnswers,
-            caseAns   = caseAnswers,
-            cat       = catalog
+            caseAns = caseAnswers,
+            cat = catalog
         )
+        log.debug("Generated PDF for chatId={}", chatId)
 
-        // 7) Отправляем пользователю сообщение о завершении
+        // 6) отправляем пользователю
         sender.send(
-            chatId, """
-            Вы ответили на все вопросы! 🏁
-            Мы свяжемся с Вами в ближайшее время. 
-            Спасибо.
-        """.trimIndent()
+            chatId,
+            "Вы ответили на все вопросы! 🏁\nСпасибо, мы свяжемся с вами скоро."
         )
+        sender.send(chatId, "Кто такой тьютор в Школе «НИКА» 👇", kb.abortTutor())
 
-        // 8) Информируем пользователя о тьюторстве
-        sender.send(
-            chatId, """
-            Можете ознакомиться с тем, кто такой тьютор в ОАНО 
-            Школа "НИКА" 👇
-        """.trimIndent(), kb.abortTutor()
-        )
-
-        // 9) Отправляем администратору PDF с результатами
+        // 7) админу
         adminId?.let { admin ->
             sender.document(admin, pdfFile, "📥 Ответы кандидата @${nick ?: chatId}")
+            log.debug("Sent PDF to admin={}", admin)
         }
     }
 }
