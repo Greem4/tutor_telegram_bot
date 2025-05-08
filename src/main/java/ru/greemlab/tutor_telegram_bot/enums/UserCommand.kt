@@ -1,8 +1,9 @@
-package ru.greemlab.tutor_telegram_bot.enums
-
 enum class UserCommand(val text: String) {
     START("/start"),
-    CANCEL("🚫 отмена");
-    companion object { fun parse(raw: String) =
-        entries.firstOrNull { it.text.equals(raw.trim(), true) } }
+    BEGIN_SURVEY("начать_опрос"),    // payload для кнопки “НАЧАТЬ 🚀”
+    BEGIN_CASES("начать_кейс"),      // payload для кнопки “Начать кейсы”
+    CANCEL("🚫 Отмена");
+    companion object {
+        fun parse(s: String) = entries.firstOrNull { it.text.equals(s, true) }
+    }
 }

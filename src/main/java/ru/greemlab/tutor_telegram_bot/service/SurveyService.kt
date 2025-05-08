@@ -7,6 +7,7 @@ import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.SurveySession
+import ru.greemlab.tutor_telegram_bot.text.BotMessages
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
@@ -138,13 +139,9 @@ class SurveyService(
         log.debug("Survey session removed for chatId={}", chatId)
 
         sender.send(
-            chatId, """
-            👏 Вы прошли 1 этап опросника на должность тьютора.
-            ➡ Впереди 2 этап - кейсы.
-            Всего будет 3 кейса. 
-            ⏱Примерное время ответа на кейсы - 30 мин. 
-            Для продолжения нажмите ниже👇
-        """.trimIndent(), kb.beginCases()
+            chatId,
+            BotMessages.CASES_WELCOME_MESSAGE,
+            kb.beginCases()
         )
     }
 }
