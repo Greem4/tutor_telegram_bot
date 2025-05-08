@@ -7,7 +7,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 import ru.greemlab.tutor_telegram_bot.enums.CallbackType
-import ru.greemlab.tutor_telegram_bot.enums.UserCommand
 
 @Service
 class KeyboardService {
