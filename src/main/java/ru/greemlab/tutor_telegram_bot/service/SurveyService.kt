@@ -21,12 +21,18 @@ class SurveyService(
 
     // Сессии опроса
     private val sessions = ConcurrentHashMap<Long, SurveySession>()
+
     // Кэш профиля (TelegramUser) по chatId
     private val profileCache = ConcurrentHashMap<Long, TelegramUser>()
 
     /** Старт первого этапа — опроса */
     fun start(chatId: Long, userId: Long, nick: String?) {
-        log.debug("Starting survey for chatId={}, userId={}, nick={}", chatId, userId, nick)
+        log.debug(
+            "Starting survey for chatId={}, userId={}, nick={}",
+            chatId,
+            userId,
+            nick
+        )
 
         // 1) Если сессия уже активна — возобновляем её
         sessions[chatId]?.let {
@@ -40,19 +46,30 @@ class SurveyService(
             .orElseGet {
                 val newUser = TelegramUser(telegramId = userId, username = nick)
                 userRepo.save(newUser).also {
-                    log.debug("Created new TelegramUser id={} telegramId={}", it.id, it.telegramId)
+                    log.debug(
+                        "Created new TelegramUser id={} telegramId={}",
+                        it.id,
+                        it.telegramId
+                    )
                 }
             }
         // 3) Если опрос уже пройден — отказываем в рестарте
         if (user.surveyCompleted) {
-            log.warn("User {} already completed survey; refusing to restart", user.telegramId)
-            sender.send(chatId, "Вы уже проходили опрос. Повторно нельзя.", kb.remove())
+            log.warn(
+                "User {} already completed survey; refusing to restart",
+                user.telegramId
+            )
+            sender.send(chatId, "Вы уже проходили опрос. Повторно нельзя.\nПродолжайте ответы👇", kb.remove())
             return
         }
         // 4) Иначе создаём новую сессию и начинаем
         sessions[chatId] = SurveySession(user)
         profileCache[chatId] = user
-        log.debug("Created SurveySession for chatId={}, total sessions={}", chatId, sessions.size)
+        log.debug(
+            "Created SurveySession for chatId={}, total sessions={}",
+            chatId,
+            sessions.size
+        )
         askNext(chatId)
     }
 
@@ -93,8 +110,10 @@ class SurveyService(
 
     /** Сохраняет изменения пользователя (флаги) */
     fun updateUser(user: TelegramUser) {
-        log.debug("Updating TelegramUser id={} surveyCompleted={} casesCompleted={}",
-            user.id, user.surveyCompleted, user.casesCompleted)
+        log.debug(
+            "Updating TelegramUser id={} surveyCompleted={} casesCompleted={}",
+            user.id, user.surveyCompleted, user.casesCompleted
+        )
         userRepo.save(user)
     }
 
@@ -107,7 +126,10 @@ class SurveyService(
             .ifPresent { user ->
                 user.surveyCompleted = false
                 userRepo.save(user)
-                log.debug("surveyCompleted flag reset in DB for telegramId={}", user.telegramId)
+                log.debug(
+                    "surveyCompleted flag reset in DB for telegramId={}",
+                    user.telegramId
+                )
             }
     }
 
@@ -132,7 +154,10 @@ class SurveyService(
         session.user.apply { surveyCompleted = true }
             .also {
                 userRepo.save(it)
-                log.debug("surveyCompleted flag set true for telegramId={}", it.telegramId)
+                log.debug(
+                    "surveyCompleted flag set true for telegramId={}",
+                    it.telegramId
+                )
             }
 
         sessions.remove(chatId)
