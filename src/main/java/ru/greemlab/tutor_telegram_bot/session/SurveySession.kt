@@ -1,18 +1,30 @@
 package ru.greemlab.tutor_telegram_bot.session
 
+import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 
 class SurveySession(
-    val userId : Long,
-    val nick   : String?,
+    /** Сущность пользователя, чтобы сохранить ответы в БД позже */
+    val user: TelegramUser
 ) {
-    private var i = 0
+    private var index = 0
     private val answers = linkedMapOf<SurveyQuestion, String>()
-    val current get() = SurveyQuestion.entries[i]
+
+    /** Текущий вопрос */
+    val current: SurveyQuestion
+        get() = SurveyQuestion.entries[index]
+
+    /** Записываем ответ на текущий вопрос */
     fun answer(txt: String) {
         answers[current] = txt
     }
 
-    fun next(): Boolean = ++i < SurveyQuestion.entries.size
-    fun dump() = answers.toMap()
+    /** Переводим на следующий вопрос.
+     * @return true, если ещё есть вопросы */
+    fun next(): Boolean =
+        ++index < SurveyQuestion.entries.size
+
+    /** Сливаем все ответы для сохранения */
+    fun dump(): Map<SurveyQuestion, String> =
+        answers.toMap()
 }

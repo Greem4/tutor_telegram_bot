@@ -31,28 +31,33 @@
     </root>
 
     <!-- Логгер для основного приложения -->
-    <logger name="ru.greemlab.tutor_telegram_bot" level="DEBUG" additivity="false">
+    <logger name="ru.greemlab.tutor_telegram_bot" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>
 
     <!-- Логирование сетевых соединений Tomcat -->
-    <logger name="org.apache.coyote.http11" level="DEBUG" />
-    <logger name="org.apache.tomcat.util.net" level="DEBUG" />
+    <logger name="org.apache.coyote.http11" level="INFO" />
+    <logger name="org.apache.tomcat.util.net" level="INFO" />
 
     <!-- Логирование Hibernate -->
     <logger name="org.hibernate" level="WARN"/>
-    <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
+    <logger name="org.hibernate.SQL" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>
-    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="DEBUG" additivity="false">
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>
 
     <!-- Логирование для TelegramBot -->
-    <logger name="ru.greemlab.tutor_telegram_bot.bot" level="DEBUG" additivity="false">
+    <logger name="ru.greemlab.tutor_telegram_bot.bot" level="info" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <logger name="ru.greemlab.tutor_telegram_bot.service" level="DEBUG" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>

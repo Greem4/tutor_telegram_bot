@@ -1,7 +1,11 @@
 package ru.greemlab.tutor_telegram_bot.service
 
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
+import ru.greemlab.tutor_telegram_bot.entity.SurveyAnswer
+import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
+import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
+import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.SurveySession
 import java.util.concurrent.ConcurrentHashMap
 
@@ -9,63 +13,125 @@ import java.util.concurrent.ConcurrentHashMap
 class SurveyService(
     private val sender: SenderService,
     private val kb: KeyboardService,
+    private val userRepo: TelegramUserRepository,
+    private val answerRepo: SurveyAnswerRepository
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
-    /* активные опросы */
+    // Сессии опроса
     private val sessions = ConcurrentHashMap<Long, SurveySession>()
+    // Кэш профиля (TelegramUser) по chatId
+    private val profileCache = ConcurrentHashMap<Long, TelegramUser>()
 
-    /* профиль пользователя (id / nick / phone) хранится отдельно -> нужен CaseService */
-    private val profile = ConcurrentHashMap<Long, Pair<Long, String?>>()
+    /** Старт первого этапа — опроса */
+    fun start(chatId: Long, userId: Long, nick: String?) {
+        log.debug("Starting survey for chatId={}, userId={}, nick={}", chatId, userId, nick)
+        val user = userRepo.findByTelegramId(userId)
+            .orElseGet {
+                val newUser = TelegramUser(telegramId = userId, username = nick)
+                userRepo.save(newUser).also {
+                    log.debug("Created new TelegramUser id={} telegramId={}", it.id, it.telegramId)
+                }
+            }
 
-    private val completed = ConcurrentHashMap<Long, Map<SurveyQuestion, String>>()
+        if (user.surveyCompleted) {
+            log.warn("User {} already completed survey; refusing to restart", user.telegramId)
+            sender.send(chatId, "Вы уже проходили опрос. Повторно нельзя.", kb.remove())
+            return
+        }
 
-    fun cacheProfile(chat: Long, id: Long, nick: String?) {
-        profile[chat] = Pair(id, nick)
+        sessions[chatId] = SurveySession(user)
+        profileCache[chatId] = user
+        log.debug("Created SurveySession for chatId={}, total sessions={}", chatId, sessions.size)
+        askNext(chatId)
     }
 
-    fun profile(chat: Long): Pair<Long, String?>? = profile[chat]
+    /** Обработка текста-ответа */
+    fun answer(chatId: Long, text: String) {
+        log.debug("Received survey answer for chatId={}: {}", chatId, text)
+        val session = sessions[chatId] ?: run {
+            log.warn("No active session for chatId={}, ignoring answer", chatId)
+            return
+        }
+        session.answer(text)
 
-    fun start(chat: Long, userId: Long, nick: String?) {
-        sessions[chat] = SurveySession(userId, nick)
-        cacheProfile(chat, userId, nick)
-        ask(chat)
-    }
-
-    fun cancel(chat: Long) {
-        sessions.remove(chat)
-    }
-
-    fun active(chat: Long): Boolean {
-        return sessions.containsKey(chat)
-    }
-
-    fun answers(chat: Long): Map<SurveyQuestion, String> =
-        sessions[chat]?.dump() ?: completed[chat] ?: emptyMap()
-
-    /* ------------ логика заданий ------------ */
-
-    private fun ask(chat: Long) {
-        sessions[chat]?.let {                      //TODO вкл кнопку отмены
-            sender.send(chat, it.current.prompt /*kb.cancel()*/)
+        if (session.next()) {
+            log.debug("Moving to next survey question for chatId={}", chatId)
+            askNext(chatId)
+        } else {
+            log.debug("All survey questions answered for chatId={}", chatId)
+            finish(chatId, session)
         }
     }
 
-    fun answer(chat: Long, txt: String) {
-        val s = sessions[chat] ?: return
-        s.answer(txt)
-        if (s.next()) ask(chat) else finish(chat)
+    /** Есть ли активная сессия опроса? */
+    fun active(chatId: Long): Boolean =
+        sessions.containsKey(chatId)
+
+    /** Отменяем опрос */
+    fun cancel(chatId: Long) {
+        log.debug("Canceling survey for chatId={}", chatId)
+        sessions.remove(chatId)
+        profileCache.remove(chatId)
     }
 
-    private fun finish(chat: Long) {
-        val session = sessions[chat] ?: return
+    /** Возвращает профилированного пользователя для CaseService */
+    fun takeProfile(chatId: Long): TelegramUser? =
+        profileCache[chatId]?.also {
+            log.debug("takeProfile for chatId={} -> telegramId={}", chatId, it.telegramId)
+        }
 
-        completed[chat] = session.dump()
+    /** Сохраняет изменения пользователя (флаги) */
+    fun updateUser(user: TelegramUser) {
+        log.debug("Updating TelegramUser id={} surveyCompleted={} casesCompleted={}",
+            user.id, user.surveyCompleted, user.casesCompleted)
+        userRepo.save(user)
+    }
 
-        sessions.remove(chat)
+    /** Сбрасывает все данные опроса для данного чата */ //TODO удалить к проду 
+    fun reset(chatId: Long) {
+        profileCache.remove(chatId)
+        log.debug("Resetting survey for chatId={}", chatId)
+        // 2) Загружаем пользователя из БД
+        userRepo.findByTelegramId(chatId)
+            .ifPresent { user ->
+                user.surveyCompleted = false
+                userRepo.save(user)
+                log.debug("surveyCompleted flag reset in DB for telegramId={}", user.telegramId)
+            }
+    }
+
+    /** Шлёт следующий вопрос + кнопку «🚫 отмена» */
+    private fun askNext(chatId: Long) {
+        val prompt = sessions[chatId]?.current?.prompt ?: return
+        log.debug("Sending survey prompt to chatId={}: {}", chatId, prompt)
+        sender.send(chatId, prompt, kb.cancel())
+    }
+
+    /** Завершает опрос: сохраняет ответы, ставит флаг и предлагает кейсы */
+    private fun finish(chatId: Long, session: SurveySession) {
+        // Сохраняем ответы
+        session.dump().forEach { (question, answer) ->
+            answerRepo.save(
+                SurveyAnswer(user = session.user, question = question, answer = answer)
+            )
+            log.debug("Saved answer for question={} chatId={}", question, chatId)
+        }
+
+        // Помечаем флагом в БД
+        session.user.apply { surveyCompleted = true }
+            .also {
+                userRepo.save(it)
+                log.debug("surveyCompleted flag set true for telegramId={}", it.telegramId)
+            }
+
+        sessions.remove(chatId)
+        log.debug("Survey session removed for chatId={}", chatId)
+
         sender.send(
-            chat, """
+            chatId, """
             👏 Вы прошли 1 этап опросника на должность тьютора.
-            ➡Впереди 2 этап - кейсы.
+            ➡ Впереди 2 этап - кейсы.
             Всего будет 3 кейса. 
             ⏱Примерное время ответа на кейсы - 30 мин. 
             Для продолжения нажмите ниже👇

@@ -2,6 +2,8 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.5"
     id("io.spring.dependency-management") version "1.1.7"
+    kotlin("plugin.spring") version "2.1.20"
+    kotlin("plugin.jpa")    version "2.1.20"
     kotlin("jvm")
 }
 
@@ -21,10 +23,14 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+
+    implementation("org.liquibase:liquibase-core")
+    implementation("org.postgresql:postgresql")
 
     implementation("org.telegram:telegrambots-spring-boot-starter:6.9.7.1")
 
