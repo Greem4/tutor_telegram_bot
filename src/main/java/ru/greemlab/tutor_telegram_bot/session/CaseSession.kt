@@ -1,8 +1,6 @@
 package ru.greemlab.tutor_telegram_bot.session
 
-import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.dto.UserInfo
-import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import java.io.Serializable
 
 /**

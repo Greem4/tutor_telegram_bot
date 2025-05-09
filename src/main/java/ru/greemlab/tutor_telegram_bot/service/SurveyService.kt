@@ -1,9 +1,11 @@
 package ru.greemlab.tutor_telegram_bot.service
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.Cache
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
+import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.entity.SurveyAnswer
 import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
@@ -13,11 +15,14 @@ import ru.greemlab.tutor_telegram_bot.text.BotMessages
 
 @Service
 class SurveyService(
+    @Value("\${app.bot.admin_id}") private val adminId: Long?,
     private val sender: SenderService,
     private val kb: KeyboardService,
     private val userRepo: TelegramUserRepository,
     private val answerRepo: SurveyAnswerRepository,
-    private val cacheManager: CacheManager      // <- вот он, наш RedisCacheManager
+    private val cacheManager: CacheManager,
+    private val pdf: PdfService,
+    private val catalog: CaseCatalog// <- вот он, наш RedisCacheManager
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -114,11 +119,21 @@ class SurveyService(
     fun active(chatId: Long): Boolean =
         cache.get(chatId)?.get() != null
 
-    /** Отменяем опрос */
-    fun cancel(chatId: Long) {
-        log.debug("Canceling survey for chatId={}", chatId)
-        cache.evict(chatId)
+    /**
+     * Досрочное завершение опроса: сохраняем, отправляем PDF и закрываем доступ.
+     */
+    suspend fun cancel(chatId: Long) {
+        log.debug("Досрочное прерывание опроса для chatId={}", chatId)
+
+        // 1) достаём сессию
+        val entry = cache.get(chatId)?.get() as? SurveySession
+        if (entry == null) {
+            cache.evict(chatId)
+            return
+        }
+        partialFinishSurvey(chatId, entry)
     }
+
 
     /** Сбрасывает все данные опроса для данного чата */ //TODO удалить к проду
     fun reset(chatId: Long) {
@@ -191,5 +206,41 @@ class SurveyService(
             BotMessages.CASES_WELCOME_MESSAGE,
             kb.beginCases()
         )
+    }
+
+    /** Сохраняем частичные ответы и шлём PDF */
+    private suspend fun partialFinishSurvey(chatId: Long, session: SurveySession) {
+        // 1) сохраняем ответы, что есть
+        val user = session.user.apply { surveyCompleted = true }
+        userRepo.save(user)
+        session.dump().forEach { (q, a) ->
+            answerRepo.save(SurveyAnswer(user = user, question = q, answer = a))
+        }
+
+        // 2) чистим сессию
+        cache.evict(chatId)
+
+        // 3) строим PDF с текущими ответами и без кейсов
+        val surveyAns = session.dump()
+        val emptyCases = emptyMap<Int, String>()
+        val pdfFile = pdf.build(
+            chatId = chatId,
+            username = user.username,
+            surveyAns = surveyAns,
+            caseAns = emptyCases,
+            cat = catalog
+        )
+        sender.send(chatId, "Вы досрочно завершили опрос")
+
+        // 4) отправляем PDF пользователю и админу
+        adminId?.let {
+            sender.document(
+                it,
+                pdfFile,
+                "📥 Отменимая анкета @${user.username ?: chatId}"
+            )
+        }
+
+        log.debug("Промежуточный PDF опроса отправлен для chatId={}", chatId)
     }
 }

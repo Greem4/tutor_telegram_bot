@@ -67,13 +67,11 @@ class MessageHandler(
         if (text.equals(UserCommand.CANCEL.text, ignoreCase = true)) {
             when {
                 survey.active(chatId) -> {
-                    survey.cancel(chatId)
-                    sender.send(chatId, BotMessages.WELCOME_MESSAGE, kb.start())
+                   survey.cancel(chatId)
                 }
 
                 cases.active(chatId) -> {
                     cases.cancel(chatId)
-                    sender.send(chatId, BotMessages.WELCOME_MESSAGE, kb.start())
                 }
 
                 else -> {
@@ -91,7 +89,7 @@ class MessageHandler(
         }
     }
 
-    private fun handleSurvey(chatId: Long, text: String) {
+    private suspend fun handleSurvey(chatId: Long, text: String) {
         if (text.equals(UserCommand.CANCEL.text, ignoreCase = true)) {
             survey.cancel(chatId)
             sender.send(chatId, BotMessages.WELCOME_MESSAGE, kb.start())
