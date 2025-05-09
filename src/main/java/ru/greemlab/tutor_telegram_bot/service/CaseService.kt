@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.dto.UserInfo
 import ru.greemlab.tutor_telegram_bot.entity.CaseAnswer
+import ru.greemlab.tutor_telegram_bot.notifier.GroupNotifierService
 import ru.greemlab.tutor_telegram_bot.repository.CaseAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
@@ -16,7 +17,6 @@ import java.io.Serializable
 @Service
 class CaseService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
-    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val catalog: CaseCatalog,
     private val sender: SenderService,
     private val kb: KeyboardService,
@@ -25,7 +25,8 @@ class CaseService(
     private val surveyAnswerRepo: SurveyAnswerRepository,
     private val caseAnswerRepo: CaseAnswerRepository,
     private val userRepo: TelegramUserRepository,
-    private val cacheManager: CacheManager          // ← внедряем CacheManager
+    private val cacheManager: CacheManager,          // ← внедряем CacheManager
+    private val groupNotifier: GroupNotifierService
 ) : Serializable {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -187,17 +188,16 @@ class CaseService(
                     "📥 Ответы кандидата @${session.user.username}"
             )
         }
-        // 7) группе
-        groupId?.let { admin ->
-            sender.document(
-                admin,
-                pdfFile,
-                if (early)
-                    "📥 Досрочные ответы кандидата @${session.user.username}"
-                else
-                    "📥 Ответы кандидата @${session.user.username}"
-            )
-        }
+        // 8. Уведомляем группу (сразу или откладываем)
+        groupNotifier.notifyOrDefer(
+            chatId   = chatId,
+            username = session.user.username,
+            surveyAns = surveyAnswers,
+            caseAns   = caseAnswers,
+            catalog   = catalog
+        )
+
+
         // в самом конце — эвиктим сессию
         cache.evict(chatId)
     }

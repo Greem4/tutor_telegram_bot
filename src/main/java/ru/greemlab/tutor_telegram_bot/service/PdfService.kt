@@ -44,7 +44,7 @@ class PdfService {
         cat: CaseCatalog
     ): File {
         // создаём временный файл
-        val file = Files.createTempFile("cases_@${username ?: chatId}_", ".pdf").toFile()
+        val file = Files.createTempFile("Ответы кандидаты_@${username ?: chatId}_", ".pdf").toFile()
 
         PdfWriter(file).use { writer ->
             PdfDocument(writer).use { pdf ->

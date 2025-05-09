@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.entity.SurveyAnswer
 import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
+import ru.greemlab.tutor_telegram_bot.notifier.GroupNotifierService
 import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.SurveySession
@@ -16,14 +17,14 @@ import ru.greemlab.tutor_telegram_bot.text.BotMessages
 @Service
 class SurveyService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
-    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val sender: SenderService,
     private val kb: KeyboardService,
     private val userRepo: TelegramUserRepository,
     private val answerRepo: SurveyAnswerRepository,
     private val cacheManager: CacheManager,
     private val pdf: PdfService,
-    private val catalog: CaseCatalog// <- вот он, наш RedisCacheManager
+    private val catalog: CaseCatalog,
+    private val groupNotifier: GroupNotifierService
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -241,13 +242,14 @@ class SurveyService(
                 "📥 Отменимая анкета @${user.username ?: chatId}"
             )
         }
-        groupId?.let {
-            sender.document(
-                it,
-                pdfFile,
-                "📥 Отменимая анкета @${user.username ?: chatId}"
-            )
-        }
+        // 4. Уведомляем группу
+        groupNotifier.notifyOrDefer(
+            chatId    = chatId,
+            username  = user.username,
+            surveyAns = surveyAns,
+            caseAns   = emptyMap(),
+            catalog   = catalog
+        )
         log.debug("Промежуточный PDF опроса отправлен для chatId={}", chatId)
 
         cache.evict(chatId)
