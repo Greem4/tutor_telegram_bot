@@ -14,14 +14,14 @@ import java.time.ZoneId
 
 @Component
 class GroupNotifierService(
+    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val sender: SenderService,
     private val pdfService: PdfService,
     private val pendingRepo: PendingNotificationRepository,
-    @Value("\${app.bot.group_id}") private val groupId: Long?
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val zone      = ZoneId.of("Europe/Moscow")
-    private val startTime = LocalTime.of(10, 0)
+    private val startTime = LocalTime.of(20, 42)
     private val endTime   = LocalTime.of(22, 0)
 
     /**
