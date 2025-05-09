@@ -1,19 +1,14 @@
 package ru.greemlab.tutor_telegram_bot.entity
 
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.Table
-import jakarta.persistence.UniqueConstraint
+import jakarta.persistence.*
+import java.io.Serializable
 
 @Entity
-@Table(name = "telegram_user", uniqueConstraints = [
-    UniqueConstraint(columnNames = ["telegram_id"])
-])
+@Table(
+    name = "telegram_user",
+    uniqueConstraints = [UniqueConstraint(columnNames = ["telegram_id"])]
+)
 data class TelegramUser(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
@@ -29,4 +24,4 @@ data class TelegramUser(
 
     @Column(nullable = false)
     var casesCompleted: Boolean = false
-)
+) : Serializable

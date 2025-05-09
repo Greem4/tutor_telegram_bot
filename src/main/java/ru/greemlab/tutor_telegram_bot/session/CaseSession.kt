@@ -1,20 +1,25 @@
 package ru.greemlab.tutor_telegram_bot.session
 
 import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
+import ru.greemlab.tutor_telegram_bot.dto.UserInfo
 import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
+import java.io.Serializable
 
+/**
+ * Сессия кейсов, тоже сохраняется в Redis
+ */
 class CaseSession(
-    val user: TelegramUser,
-    private val cat: CaseCatalog
-) {
-    private var i = 0
-    private val answers = linkedMapOf<Int, String>()
-    val current get() = cat.byIndex(i)
+    val user: UserInfo,
+    var index: Int = 0,
+    private val answers: LinkedHashMap<Int, String> = linkedMapOf()
+) : Serializable {
 
     fun answer(txt: String) {
-        answers[i] = txt
+        answers[index] = txt
     }
 
-    fun next(): Boolean = ++i < cat.size()
+    fun next(total : Int): Boolean =
+        ++index < total
+
     fun dump(): Map<Int, String> = answers.toMap()
 }

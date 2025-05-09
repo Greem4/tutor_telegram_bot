@@ -2,11 +2,15 @@ package ru.greemlab.tutor_telegram_bot.session
 
 import ru.greemlab.tutor_telegram_bot.entity.TelegramUser
 import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
+import java.io.Serializable
 
+/**
+ * Сессия опроса, которую мы заливаем в Redis.
+ */
 class SurveySession(
     /** Сущность пользователя, чтобы сохранить ответы в БД позже */
     val user: TelegramUser
-) {
+) : Serializable {
     private var index = 0
     private val answers = linkedMapOf<SurveyQuestion, String>()
 
