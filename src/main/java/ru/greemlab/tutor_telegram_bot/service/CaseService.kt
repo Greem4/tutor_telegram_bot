@@ -17,7 +17,6 @@ import java.io.Serializable
 @Service
 class CaseService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
-    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val catalog: CaseCatalog,
     private val sender: SenderService,
     private val kb: KeyboardService,

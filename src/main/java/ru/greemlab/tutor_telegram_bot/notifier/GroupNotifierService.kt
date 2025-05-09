@@ -14,20 +14,23 @@ import java.time.ZoneId
 
 @Component
 class GroupNotifierService(
-    @Value("\${app.bot.group_id}") private val groupId: Long?,
+    @Value("\${app.bot.group_id}") private val groupId: Long?,      // ID целевой группы
     private val sender: SenderService,
     private val pdfService: PdfService,
-    private val pendingRepo: PendingNotificationRepository,
+    private val pendingRepo: PendingNotificationRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    // Часовой пояс для окна рассылки
     private val zone      = ZoneId.of("Europe/Moscow")
-    private val startTime = LocalTime.of(20, 42)
+    // Разрешённый интервал: [10:00, 22:00)
+    private val startTime = LocalTime.of(10, 0)
     private val endTime   = LocalTime.of(22, 0)
 
     /**
-     * Собирает PDF (анкета или кейсы) и:
-     * - если сейчас в окне 10–22 по Мск — шлёт в группу;
-     * - иначе сохраняет в pending_notifications.
+     * Сначала строим PDF, затем:
+     * — если сейчас в [10:00,22:00) по МСК, шлём сразу в группу;
+     * — иначе сохраняем PendingNotification с userChatId для отложенной отправки.
      */
     fun notifyOrDefer(
         chatId: Long,
@@ -36,38 +39,44 @@ class GroupNotifierService(
         caseAns: Map<Int, String>,
         catalog: ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
     ) {
-        // 1) собрать PDF единым методом
+        // 1) Собираем PDF
         val pdfFile: File = pdfService.build(
-            chatId = chatId,
-            username = username,
+            chatId    = chatId,
+            username  = username,
             surveyAns = surveyAns,
-            caseAns = caseAns,
-            cat = catalog
+            caseAns   = caseAns,
+            cat       = catalog
         )
 
-        // 2) проверить время
+        // 2) Проверяем текущее время
         val now = LocalTime.now(zone)
+        log.debug("GroupNotifier: now={}, window={}–{}", now, startTime, endTime)
+
         if (!now.isBefore(startTime) && now.isBefore(endTime)) {
+            // 10:00 ≤ now < 22:00 — отправляем сразу
             doSend(pdfFile, username, chatId)
         } else {
+            // иначе — откладываем
             pendingRepo.save(
                 PendingNotification(
-                    telegramId = groupId ?: chatId,
-                    username   = username ?: chatId.toString(),
+                    telegramId = chatId,                         // сохраняем chatId пользователя
+                    username   = username ?: chatId.toString()
                 )
             )
-            log.info("GroupNotifier: отложена отправка для ${username ?: chatId} ($now не в ${startTime}–${endTime})")
+            log.info("Deferred notification for ${username ?: chatId}: now $now outside $startTime–$endTime")
         }
     }
 
-    /** Отправка без проверки окна */
+    /**
+     * Фактическая отправка PDF в группу (без проверки времени).
+     */
     private fun doSend(pdf: File, username: String?, chatId: Long) {
-        val who = username?.let { "@$it" } ?: chatId.toString()
+        val who     = username?.let { "@$it" } ?: chatId.toString()
         val caption = "📥 PDF от $who"
 
         groupId?.let { gid ->
             sender.document(gid, pdf, caption)
-        } ?: log.warn("GroupNotifier: groupId == null, пропускаем отправку")
+            log.debug("Sent PDF to group $gid for $who")
+        } ?: log.warn("GroupNotifier: groupId is null, cannot send PDF")
     }
-
 }

@@ -22,43 +22,58 @@ class PendingNotificationScheduler(
     private val userRepo: TelegramUserRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    // часовой пояс для проверки “рабочего окна”
     private val zone      = ZoneId.of("Europe/Moscow")
-    private val startTime = LocalTime.of(20, 42)
+    // начало окна (включительно): с этого времени можно отправлять
+    private val startTime = LocalTime.of(10, 0)
+    // конец окна (исключительно): до этого времени можно отправлять
     private val endTime   = LocalTime.of(22, 0)
 
-    /** Каждую минуту прогоняем отложенные и шлём, когда окно откроется */
+    /**
+     * Запускается каждые 60 000 мс (1 минута).
+     * 1) Логируем текущее время и сколько отложенных есть в базе.
+     * 2) Если ещё не начало окна или уже после конца — выходим.
+     * 3) Иначе проходим по всем `sent = false`, собираем их ответы из БД
+     *    и передаём в `notifyOrDefer` (которая так как окно уже открыто, сразу шлёт).
+     * 4) Отмечаем каждую запись как `sent = true`.
+     */
     @Scheduled(fixedRate = 60_000)
     fun process() {
         val now = LocalTime.now(zone)
-        log.debug("Scheduler запускается — Pending to send: ${pendingRepo.findBySentFalse().size}")
-        if (now.isBefore(startTime) || !now.isBefore(endTime)) return
+        log.debug(
+            "Scheduler tick at {}; pending count = {}",
+            now,
+            pendingRepo.findBySentFalse().size
+        )
 
+        // Если текущее время < startTime или ≥ endTime — выходим
+        if (now.isBefore(startTime) || !now.isBefore(endTime)) {
+            log.debug(" Scheduler skipping: outside window {}–{}", startTime, endTime)
+            return
+        }
+
+        // Иначе — обрабатываем все отложенные
         pendingRepo.findBySentFalse().forEach { pn ->
-            val user = userRepo.findByTelegramId(pn.telegramId)
-                .orElse(null)
+            log.debug(" Processing pending id=${pn.id}, user=${pn.username}")
+            val user = userRepo.findByTelegramId(pn.telegramId).orElse(null)
             if (user == null) {
-                // не нашли — просто помечаем, чтобы не зациклить
+                log.warn("  → User ${pn.telegramId} not found, marking sent")
                 pn.sent = true
                 pendingRepo.save(pn)
                 return@forEach
             }
 
-            // 1) достаём ответы анкеты из БД
+            // Собираем ответы анкеты
             val surveyAns: Map<SurveyQuestion,String> = surveyAnswerRepo
                 .findByUser(user)
-                .associate { answer ->
-                    answer.question to answer.answer
-                }
-
-            // 2) достаём ответы кейсов из БД
+                .associate { ans -> ans.question to ans.answer }
+            // Собираем ответы кейсов
             val caseAns: Map<Int,String> = caseAnswerRepo
                 .findByUser(user)
-                .associate { ca ->
-                    ca.caseIndex to ca.answer
-                }
+                .associate { ca -> ca.caseIndex to ca.answer }
 
             try {
-                // 3) отправляем (или откладываем вновь, но сейчас уже inWindow)
                 notifier.notifyOrDefer(
                     chatId    = pn.telegramId,
                     username  = pn.username,
@@ -68,8 +83,9 @@ class PendingNotificationScheduler(
                 )
                 pn.sent = true
                 pendingRepo.save(pn)
+                log.debug("  → Sent and marked id=${pn.id}")
             } catch (e: Exception) {
-                log.error("Ошибка при отправке отложенной нотификации для ${pn.username}", e)
+                log.error("  → Error sending pending id=${pn.id}", e)
             }
         }
     }
