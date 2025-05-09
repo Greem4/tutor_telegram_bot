@@ -38,13 +38,13 @@ class PdfService {
 
     fun build(
         chatId: Long,
-        nike: String?,
+        username: String?,
         surveyAns: Map<SurveyQuestion, String>,
         caseAns: Map<Int, String>,
         cat: CaseCatalog
     ): File {
         // создаём временный файл
-        val file = Files.createTempFile("cases_@${nike ?: chatId}_", ".pdf").toFile()
+        val file = Files.createTempFile("cases_@${username ?: chatId}_", ".pdf").toFile()
 
         PdfWriter(file).use { writer ->
             PdfDocument(writer).use { pdf ->
@@ -84,9 +84,9 @@ class PdfService {
                         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 
                     // ——— Ник пользователя и дата ———
-                    if (!nike.isNullOrBlank()) {
+                    if (!username.isNullOrBlank()) {
                         // создаём ссылку на телеграм-аккаунт
-                        val tgLink = Link("@$nike", PdfAction.createURI("https://t.me/$nike"))
+                        val tgLink = Link("@$username", PdfAction.createURI("https://t.me/$username"))
                             .setFont(bold)                          // делаем ссылку полужирной
                             .setFontSize(BASE_FONT_SIZE)           // размер шрифта ссылки
                             .setFontColor(ColorConstants.BLUE)     // синий цвет текста
