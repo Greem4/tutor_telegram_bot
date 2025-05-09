@@ -9,5 +9,6 @@
     <include file="db/changelog/001-create-telegram-user.xml"/>
     <include file="db/changelog/002-create-survey-answer.xml"/>
     <include file="db/changelog/003-create-case-answer.xml"/>
+    <include file="db/changelog/004-create-pending-notification.xml"/>
 
 </databaseChangeLog>
