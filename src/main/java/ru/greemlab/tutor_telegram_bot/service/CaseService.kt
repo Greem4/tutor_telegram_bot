@@ -71,9 +71,18 @@ class CaseService(
 
     fun active(chatId: Long): Boolean = cache.get(chatId, CaseSession::class.java) != null
 
-    fun cancel(chatId: Long) {
-        log.debug("Canceling cases for chatId={}", chatId)
-        cache.evict(chatId)
+    /**
+     * Досрочное завершение кейсов: отправляем PDF с тем, что есть.
+     */
+    suspend fun cancel(chatId: Long) {
+        log.debug("Досрочное прерывание кейсов для chatId={}", chatId)
+
+        val session = cache.get(chatId, CaseSession::class.java)
+            ?: run {
+                cache.evict(chatId)
+                return
+            }
+        finish(chatId, session, early = true)
     }
 
     suspend fun answer(chatId: Long, text: String) {
@@ -97,7 +106,6 @@ class CaseService(
     private suspend fun askNext(chatId: Long) {
         val session = cache.get(chatId, CaseSession::class.java) ?: return
         val kase = catalog.byIndex(session.index)
-        val num = session.index + 1
         log.debug("Asking case #{} to chatId={}", kase.id, chatId)
         sender.photo(chatId, kase.image, kb.cancel())
     }
@@ -118,7 +126,7 @@ class CaseService(
         }
     }
 
-    private suspend fun finish(chatId: Long, session: CaseSession) {
+    private suspend fun finish(chatId: Long, session: CaseSession, early: Boolean = false) {
         log.debug("Finishing cases for chatId={}", chatId)
         // 1. достаём «настоящего» пользователя из БД
         val user = userRepo.findByTelegramId(chatId)
@@ -126,11 +134,13 @@ class CaseService(
 
         // 2. сохраняем ответы
         session.dump().forEach { (idx, answer) ->
-            caseAnswerRepo.save(CaseAnswer(
-                user = user,
-                caseIndex = idx,
-                answer = answer,
-            ))
+            caseAnswerRepo.save(
+                CaseAnswer(
+                    user = user,
+                    caseIndex = idx,
+                    answer = answer,
+                )
+            )
         }
 
         // 3. ставим флаг «завершил кейсы»
@@ -153,17 +163,30 @@ class CaseService(
         )
 
         // 6) отправляем пользователю
-        sender.send(
-            chatId, "Вы ответили на все вопросы! 🏁\nСпасибо, мы свяжемся с вами скоро."
-        )
-        sender.send(chatId, "Кто такой тьютор в Школе «НИКА» 👇", kb.abortTutor())
+        if (early) {
+            sender.send(
+                chatId,
+                "Вы досрочно завершили",
+                kb.remove()
+            )
+        } else {
+            sender.send(chatId,
+                "Вы ответили на все вопросы! 🏁\nСпасибо, мы свяжемся с вами скоро.")
+            sender.send(chatId, "Кто такой тьютор в Школе «НИКА» 👇", kb.abortTutor())
+        }
 
         // 7) админу
         adminId?.let { admin ->
             sender.document(
-                admin, pdfFile, "📥 Ответы кандидата @${session.user.username ?: chatId}"
+                admin,
+                pdfFile,
+                if (early)
+                    "📥 Досрочные ответы кандидата @${session.user.username}"
+                else
+                    "📥 Ответы кандидата @${session.user.username}"
             )
-            log.debug("Sent PDF to admin={}", admin)
         }
+        // в самом конце — эвиктим сессию
+        cache.evict(chatId)
     }
 }
