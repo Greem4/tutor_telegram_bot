@@ -13,6 +13,7 @@ import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.CaseSession
 import java.io.Serializable
+import java.time.LocalDateTime
 
 @Service
 class CaseService(
@@ -161,7 +162,8 @@ class CaseService(
             username = user.username,
             surveyAns = surveyAnswers,
             caseAns = caseAnswers,
-            cat = catalog
+            cat = catalog,
+            completedAt = LocalDateTime.now()
         )
 
         // 6) отправляем пользователю
@@ -194,7 +196,8 @@ class CaseService(
             username = session.user.username,
             surveyAns = surveyAnswers,
             caseAns   = caseAnswers,
-            catalog   = catalog
+            catalog   = catalog,
+            completedAt = LocalDateTime.now()
         )
 
 

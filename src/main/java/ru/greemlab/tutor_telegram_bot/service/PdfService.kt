@@ -41,7 +41,8 @@ class PdfService {
         username: String?,
         surveyAns: Map<SurveyQuestion, String>,
         caseAns: Map<Int, String>,
-        cat: CaseCatalog
+        cat: CaseCatalog,
+        completedAt: LocalDateTime
     ): File {
         // создаём временный файл
         val file = Files.createTempFile("Ответы кандидаты_@${username ?: chatId}_", ".pdf").toFile()
@@ -80,7 +81,7 @@ class PdfService {
                     )
 
                     // Текущая дата и время в формате yyyy-MM-dd HH:mm
-                    val formattedDate = LocalDateTime.now()
+                    val formattedDate = completedAt
                         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 
                     // ——— Ник пользователя и дата ———

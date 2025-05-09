@@ -79,7 +79,8 @@ class PendingNotificationScheduler(
                     username  = pn.username,
                     surveyAns = surveyAns,
                     caseAns   = caseAns,
-                    catalog   = catalog
+                    catalog   = catalog,
+                    completedAt = pn.createdAt
                 )
                 pn.sent = true
                 pendingRepo.save(pn)

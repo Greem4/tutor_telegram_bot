@@ -13,6 +13,7 @@ import ru.greemlab.tutor_telegram_bot.repository.SurveyAnswerRepository
 import ru.greemlab.tutor_telegram_bot.repository.TelegramUserRepository
 import ru.greemlab.tutor_telegram_bot.session.SurveySession
 import ru.greemlab.tutor_telegram_bot.text.BotMessages
+import java.time.LocalDateTime
 
 @Service
 class SurveyService(
@@ -230,7 +231,8 @@ class SurveyService(
             username = user.username,
             surveyAns = surveyAns,
             caseAns = emptyCases,
-            cat = catalog
+            cat = catalog,
+            completedAt = LocalDateTime.now()
         )
         sender.send(chatId, "Вы досрочно завершили опрос")
 
@@ -244,11 +246,12 @@ class SurveyService(
         }
         // 4. Уведомляем группу
         groupNotifier.notifyOrDefer(
-            chatId    = chatId,
-            username  = user.username,
+            chatId = chatId,
+            username = user.username,
             surveyAns = surveyAns,
-            caseAns   = emptyMap(),
-            catalog   = catalog
+            caseAns = emptyMap(),
+            catalog = catalog,
+            completedAt = LocalDateTime.now()
         )
         log.debug("Промежуточный PDF опроса отправлен для chatId={}", chatId)
 

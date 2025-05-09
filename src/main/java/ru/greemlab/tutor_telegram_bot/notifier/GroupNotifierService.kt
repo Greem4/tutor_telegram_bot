@@ -3,12 +3,14 @@ package ru.greemlab.tutor_telegram_bot.notifier
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
 import ru.greemlab.tutor_telegram_bot.entity.PendingNotification
 import ru.greemlab.tutor_telegram_bot.enums.SurveyQuestion
 import ru.greemlab.tutor_telegram_bot.repository.PendingNotificationRepository
 import ru.greemlab.tutor_telegram_bot.service.PdfService
 import ru.greemlab.tutor_telegram_bot.service.SenderService
 import java.io.File
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -37,7 +39,8 @@ class GroupNotifierService(
         username: String?,
         surveyAns: Map<SurveyQuestion, String>,
         caseAns: Map<Int, String>,
-        catalog: ru.greemlab.tutor_telegram_bot.catalog.CaseCatalog
+        catalog: CaseCatalog,
+        completedAt: LocalDateTime
     ) {
         // 1) Собираем PDF
         val pdfFile: File = pdfService.build(
@@ -45,7 +48,8 @@ class GroupNotifierService(
             username  = username,
             surveyAns = surveyAns,
             caseAns   = caseAns,
-            cat       = catalog
+            cat       = catalog,
+            completedAt = completedAt
         )
 
         // 2) Проверяем текущее время
