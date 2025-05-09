@@ -3,6 +3,7 @@ app:
     botUsername: ${BOT_USERNAME}
     botToken: ${TOKEN_BOT}
     admin_id: ${ADMIN_ID}
+    group_id: ${GROUP_ID}
 
 spring:
   datasource:

@@ -16,6 +16,7 @@ import java.io.Serializable
 @Service
 class CaseService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
+    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val catalog: CaseCatalog,
     private val sender: SenderService,
     private val kb: KeyboardService,
@@ -177,6 +178,17 @@ class CaseService(
 
         // 7) админу
         adminId?.let { admin ->
+            sender.document(
+                admin,
+                pdfFile,
+                if (early)
+                    "📥 Досрочные ответы кандидата @${session.user.username}"
+                else
+                    "📥 Ответы кандидата @${session.user.username}"
+            )
+        }
+        // 7) группе
+        groupId?.let { admin ->
             sender.document(
                 admin,
                 pdfFile,

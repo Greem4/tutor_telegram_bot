@@ -16,6 +16,7 @@ import ru.greemlab.tutor_telegram_bot.text.BotMessages
 @Service
 class SurveyService(
     @Value("\${app.bot.admin_id}") private val adminId: Long?,
+    @Value("\${app.bot.group_id}") private val groupId: Long?,
     private val sender: SenderService,
     private val kb: KeyboardService,
     private val userRepo: TelegramUserRepository,
@@ -240,7 +241,15 @@ class SurveyService(
                 "📥 Отменимая анкета @${user.username ?: chatId}"
             )
         }
-
+        groupId?.let {
+            sender.document(
+                it,
+                pdfFile,
+                "📥 Отменимая анкета @${user.username ?: chatId}"
+            )
+        }
         log.debug("Промежуточный PDF опроса отправлен для chatId={}", chatId)
+
+        cache.evict(chatId)
     }
 }

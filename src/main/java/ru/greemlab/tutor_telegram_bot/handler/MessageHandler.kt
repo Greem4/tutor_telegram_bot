@@ -67,7 +67,7 @@ class MessageHandler(
         if (text.equals(UserCommand.CANCEL.text, ignoreCase = true)) {
             when {
                 survey.active(chatId) -> {
-                   survey.cancel(chatId)
+                    survey.cancel(chatId)
                 }
 
                 cases.active(chatId) -> {
