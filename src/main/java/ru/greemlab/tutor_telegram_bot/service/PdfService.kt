@@ -24,14 +24,15 @@ import java.time.format.DateTimeFormatter
 class PdfService {
 
     companion object {
+        // Пути к шрифтам
         private const val REGULAR_FONT            = "/fonts/Arial.ttf"
         private const val BOLD_FONT               = "/fonts/Arial-Bold.ttf"
 
-        /** Размеры шрифтов */
+        // Размеры шрифтов
         private const val TITLE_FONT_SIZE         = 12f
         private const val BASE_FONT_SIZE          = 11f
 
-        /** Отступы секций/заголовков */
+        // Отступы секций/заголовков
         private const val TITLE_MARGIN_BOTTOM     = 8f
         private const val HEADER_MARGIN_BOTTOM    = 12f
         private const val SECTION_MARGIN_BOTTOM   = 8f
@@ -39,14 +40,14 @@ class PdfService {
         private const val CASES_MARGIN_TOP        = 12f
         private const val CASES_MARGIN_BOTTOM     = 6f
 
-        /** Пропорции колонок [№, Вопрос, Ответ] */
+        // Пропорции колонок [№, Вопрос, Ответ]
         private val COLUMN_RATIOS = floatArrayOf(1f, 7f, 4f)
 
-        /** Внутренние отступы ячеек (pt): горизонталь × вертикаль */
+        // Внутренние отступы ячеек: горизонталь × вертикаль
         private const val PAD_H                   = 4f
         private const val PAD_V                   = 2f
 
-        /** Формат даты/времени в шапке */
+        // Формат даты/времени в шапке
         private const val DATE_PATTERN            = "yyyy-MM-dd HH:mm"
     }
 
@@ -58,7 +59,7 @@ class PdfService {
         cat: CaseCatalog,
         completedAt: LocalDateTime
     ): File {
-        // создаём временный файл
+        // Создание временного файла PDF
         val file = Files
             .createTempFile("Ответы кандидаты_@${username ?: chatId}_", ".pdf")
             .toFile()
@@ -67,7 +68,7 @@ class PdfService {
             PdfDocument(writer).use { pdf ->
                 Document(pdf).use { doc ->
 
-                    // Загрузка шрифтов и базовые настройки
+                    // 1) Загрузка шрифтов и установка базового шрифта
                     val regular: PdfFont = PdfFontFactory.createFont(
                         REGULAR_FONT, PdfEncodings.IDENTITY_H,
                         PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
@@ -78,7 +79,7 @@ class PdfService {
                     )
                     doc.setFont(regular).setFontSize(BASE_FONT_SIZE)
 
-                    // Заголовок документа
+                    // 2) Заголовок документа
                     doc.add(
                         Paragraph("ОТВЕТЫ ОПРОСНИКА НА ДОЛЖНОСТЬ ТЬЮТОРА")
                             .setFont(bold)
@@ -88,7 +89,7 @@ class PdfService {
                             .setMarginBottom(TITLE_MARGIN_BOTTOM)
                     )
 
-                    // Кандидат и дата
+                    // 3) Блок кандидата и даты заполнения
                     val formattedDate = completedAt.format(DateTimeFormatter.ofPattern(DATE_PATTERN))
                     val header = Paragraph()
                         .setFont(regular)
@@ -107,7 +108,7 @@ class PdfService {
                     }
                     doc.add(header)
 
-                    // Секция «Опрос»
+                    // 4) Секция «Опрос»
                     doc.add(
                         Paragraph("Опрос")
                             .setFont(bold)
@@ -116,12 +117,12 @@ class PdfService {
                             .setMarginBottom(SECTION_MARGIN_BOTTOM)
                     )
 
-                    // Таблица «Опрос» без зебры
+                    // 5) Таблица «Опрос»
                     val table = Table(UnitValue.createPercentArray(COLUMN_RATIOS))
                         .useAllAvailableWidth()
                         .setMarginBottom(TABLE_MARGIN_BOTTOM)
 
-                    // Заголовки
+                    // 5.1) Заголовки столбцов таблицы
                     listOf("№", "Вопрос", "Ответ").forEach { title ->
                         table.addHeaderCell(
                             Cell().add(
@@ -138,9 +139,9 @@ class PdfService {
                         )
                     }
 
-                    // Обычные строки
+                    // 5.2) Заполнение строк ответами
                     SurveyQuestion.entries.forEachIndexed { idx, question ->
-                        // №
+                        // Столбец №
                         table.addCell(
                             Cell().add(
                                 Paragraph("${idx + 1}")
@@ -155,7 +156,7 @@ class PdfService {
                                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                         )
 
-                        // Вопрос
+                        // Столбец Вопрос
                         table.addCell(
                             Cell().add(
                                 Paragraph(question.label())
@@ -170,7 +171,7 @@ class PdfService {
                                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                         )
 
-                        // Ответ
+                        // Столбец Ответ
                         table.addCell(
                             Cell().add(
                                 Paragraph(surveyAns[question] ?: "—")
@@ -187,7 +188,7 @@ class PdfService {
                     }
                     doc.add(table)
 
-                    // Секция «Кейсы»
+                    // 6) Секция «Кейсы»
                     doc.add(
                         Paragraph("Кейсы")
                             .setFont(bold)
@@ -197,15 +198,19 @@ class PdfService {
                             .setMarginBottom(CASES_MARGIN_BOTTOM)
                     )
 
-                    // Вывод кейсов
+                    // 6.1) Вывод каждого кейса с описанием курсивом
                     caseAns.forEach { (idx, answer) ->
                         val kase = cat.byIndex(idx)
+
+                        // Номер кейса
                         doc.add(
                             Paragraph("КЕЙС №${kase.id}")
                                 .setFont(bold)
                                 .setFontSize(BASE_FONT_SIZE)
                                 .setMarginBottom(2f)
                         )
+
+                        // Описание ситуации (курсив)
                         doc.add(
                             Paragraph().add(
                                 Text(kase.description)
@@ -215,6 +220,8 @@ class PdfService {
                             )
                                 .setMarginBottom(4f)
                         )
+
+                        // Задачи кейса (маркированный список)
                         if (kase.tasks.isNotEmpty()) {
                             val tasksList = List()
                                 .setFont(regular)
@@ -226,6 +233,8 @@ class PdfService {
                             kase.tasks.forEach { t -> tasksList.add(ListItem(t)) }
                             doc.add(tasksList)
                         }
+
+                        // Ответ соискателя
                         doc.add(
                             Paragraph("ОТВЕТ СОИСКАТЕЛЯ:")
                                 .setFont(bold)
@@ -246,6 +255,7 @@ class PdfService {
         return file
     }
 
+    // Метод для получения текста вопроса по enum
     private fun SurveyQuestion.label(): String = when (this) {
         SurveyQuestion.FULL_NAME -> "ФИО"
         SurveyQuestion.LAST_POSITION -> "Должность на предыдущем месте"
