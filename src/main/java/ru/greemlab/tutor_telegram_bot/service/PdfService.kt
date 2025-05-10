@@ -207,9 +207,12 @@ class PdfService {
                                 .setMarginBottom(2f)
                         )
                         doc.add(
-                            Paragraph(kase.description)
-                                .setFont(regular)
-                                .setFontSize(BASE_FONT_SIZE)
+                            Paragraph().add(
+                                Text(kase.description)
+                                    .setFont(regular)
+                                    .setFontSize(BASE_FONT_SIZE)
+                                    .setItalic()
+                            )
                                 .setMarginBottom(4f)
                         )
                         if (kase.tasks.isNotEmpty()) {
