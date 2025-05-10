@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: tutor_bot_db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: tutor_telegram_bot
+      POSTGRES_INITDB_ARGS: "--locale=ru_RU.UTF-8 --lc-collate=C --encoding=UTF-8"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d tutor_telegram_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tutor_network
+
+  redis:
+    image: redis:alpine
+    container_name: tutor_bot_redis
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tutor_network
+
+  bot:
+    image: greem4/tutor_telegram_bot:latest
+    container_name: tutor_bot_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+
+      BOT_USERNAME: ${BOT_USERNAME}
+      TOKEN_BOT: ${TOKEN_BOT}
+      ADMIN_ID: ${ADMIN_ID}
+      GROUP_ID: ${GROUP_ID}
+
+      IMAGE_CASE_1: ${IMAGE_CASE_1}
+      IMAGE_CASE_2: ${IMAGE_CASE_2}
+      IMAGE_CASE_3: ${IMAGE_CASE_3}
+
+      TZ: ${TZ:-Europe/Moscow}
+
+    ports:
+      - "8080:8080"
+    networks:
+      - tutor_network
+
+networks:
+  tutor_network:
+    driver: bridge
