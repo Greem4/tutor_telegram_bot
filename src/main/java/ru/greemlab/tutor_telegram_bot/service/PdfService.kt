@@ -39,14 +39,12 @@ class PdfService {
         private const val CASES_MARGIN_TOP        = 12f
         private const val CASES_MARGIN_BOTTOM     = 6f
 
-        /** Ширины колонок [№, Вопрос, Ответ] в pt — взяты из макета */
-        private const val COL1_WIDTH              = 30f   // №
-        private const val COL2_WIDTH              = 340f  // Текст вопроса
-        private const val COL3_WIDTH              = 180f  // Ответ соискателя
+        /** Пропорции колонок [№, Вопрос, Ответ] */
+        private val COLUMN_RATIOS = floatArrayOf(1f, 7f, 4f)
 
         /** Внутренние отступы ячеек (pt): горизонталь × вертикаль */
-        private const val PAD_H                   = 2f
-        private const val PAD_V                   = 1f
+        private const val PAD_H                   = 4f
+        private const val PAD_V                   = 2f
 
         /** Формат даты/времени в шапке */
         private const val DATE_PATTERN            = "yyyy-MM-dd HH:mm"
@@ -69,7 +67,7 @@ class PdfService {
             PdfDocument(writer).use { pdf ->
                 Document(pdf).use { doc ->
 
-                    // 1) Загрузка шрифтов
+                    // Загрузка шрифтов и базовые настройки
                     val regular: PdfFont = PdfFontFactory.createFont(
                         REGULAR_FONT, PdfEncodings.IDENTITY_H,
                         PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
@@ -78,11 +76,9 @@ class PdfService {
                         BOLD_FONT, PdfEncodings.IDENTITY_H,
                         PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED
                     )
-
-                    // 2) Базовый шрифт и размер
                     doc.setFont(regular).setFontSize(BASE_FONT_SIZE)
 
-                    // 3) Заголовок документа
+                    // Заголовок документа
                     doc.add(
                         Paragraph("ОТВЕТЫ ОПРОСНИКА НА ДОЛЖНОСТЬ ТЬЮТОРА")
                             .setFont(bold)
@@ -92,14 +88,13 @@ class PdfService {
                             .setMarginBottom(TITLE_MARGIN_BOTTOM)
                     )
 
-                    // 4) «Кандидат … от:»
+                    // Кандидат и дата
                     val formattedDate = completedAt.format(DateTimeFormatter.ofPattern(DATE_PATTERN))
                     val header = Paragraph()
                         .setFont(regular)
                         .setFontSize(BASE_FONT_SIZE)
                         .setTextAlignment(TextAlignment.RIGHT)
                         .setMarginBottom(HEADER_MARGIN_BOTTOM)
-
                     if (!username.isNullOrBlank()) {
                         val link = Link("@$username", PdfAction.createURI("https://t.me/$username"))
                             .setFont(bold)
@@ -112,7 +107,7 @@ class PdfService {
                     }
                     doc.add(header)
 
-                    // 5) Секция «Опрос»
+                    // Секция «Опрос»
                     doc.add(
                         Paragraph("Опрос")
                             .setFont(bold)
@@ -121,12 +116,29 @@ class PdfService {
                             .setMarginBottom(SECTION_MARGIN_BOTTOM)
                     )
 
-                    // 6) Таблица «Опрос»
-                    val table = Table(floatArrayOf(COL1_WIDTH, COL2_WIDTH, COL3_WIDTH))
-                        .setWidth(UnitValue.createPointValue(COL1_WIDTH + COL2_WIDTH + COL3_WIDTH))
-                        .setFixedLayout()
+                    // Таблица «Опрос» без зебры
+                    val table = Table(UnitValue.createPercentArray(COLUMN_RATIOS))
+                        .useAllAvailableWidth()
                         .setMarginBottom(TABLE_MARGIN_BOTTOM)
 
+                    // Заголовки
+                    listOf("№", "Вопрос", "Ответ").forEach { title ->
+                        table.addHeaderCell(
+                            Cell().add(
+                                Paragraph(title)
+                                    .setFont(bold)
+                                    .setFontSize(BASE_FONT_SIZE)
+                                    .setTextAlignment(TextAlignment.CENTER)
+                            )
+                                .setBackgroundColor(ColorConstants.LIGHT_GRAY)
+                                .setPaddingTop(PAD_V)
+                                .setPaddingRight(PAD_H)
+                                .setPaddingBottom(PAD_V)
+                                .setPaddingLeft(PAD_H)
+                        )
+                    }
+
+                    // Обычные строки
                     SurveyQuestion.entries.forEachIndexed { idx, question ->
                         // №
                         table.addCell(
@@ -134,46 +146,48 @@ class PdfService {
                                 Paragraph("${idx + 1}")
                                     .setFont(regular)
                                     .setFontSize(BASE_FONT_SIZE)
+                                    .setTextAlignment(TextAlignment.CENTER)
                             )
-                                .setPaddingLeft(PAD_H)
-                                .setPaddingRight(PAD_H)
                                 .setPaddingTop(PAD_V)
+                                .setPaddingRight(PAD_H)
                                 .setPaddingBottom(PAD_V)
-                                .setTextAlignment(TextAlignment.CENTER)
+                                .setPaddingLeft(PAD_H)
                                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                         )
+
                         // Вопрос
                         table.addCell(
                             Cell().add(
                                 Paragraph(question.label())
                                     .setFont(regular)
                                     .setFontSize(BASE_FONT_SIZE)
+                                    .setTextAlignment(TextAlignment.LEFT)
                             )
-                                .setPaddingLeft(PAD_H * 2)  // чуть больше слева для вопросов
-                                .setPaddingRight(PAD_H)
                                 .setPaddingTop(PAD_V)
+                                .setPaddingRight(PAD_H)
                                 .setPaddingBottom(PAD_V)
-                                .setTextAlignment(TextAlignment.LEFT)
+                                .setPaddingLeft(PAD_H * 2)
                                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                         )
+
                         // Ответ
                         table.addCell(
                             Cell().add(
                                 Paragraph(surveyAns[question] ?: "—")
                                     .setFont(bold)
                                     .setFontSize(BASE_FONT_SIZE)
+                                    .setTextAlignment(TextAlignment.LEFT)
                             )
-                                .setPaddingLeft(PAD_H)
-                                .setPaddingRight(PAD_H)
                                 .setPaddingTop(PAD_V)
+                                .setPaddingRight(PAD_H)
                                 .setPaddingBottom(PAD_V)
-                                .setTextAlignment(TextAlignment.LEFT)
+                                .setPaddingLeft(PAD_H)
                                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                         )
                     }
                     doc.add(table)
 
-                    // 7) Секция «Кейсы»
+                    // Секция «Кейсы»
                     doc.add(
                         Paragraph("Кейсы")
                             .setFont(bold)
@@ -183,7 +197,7 @@ class PdfService {
                             .setMarginBottom(CASES_MARGIN_BOTTOM)
                     )
 
-                    // 8) Вывод кейсов
+                    // Вывод кейсов
                     caseAns.forEach { (idx, answer) ->
                         val kase = cat.byIndex(idx)
                         doc.add(
@@ -229,7 +243,6 @@ class PdfService {
         return file
     }
 
-    // Перенес метод label() вниз, чтобы не мешался
     private fun SurveyQuestion.label(): String = when (this) {
         SurveyQuestion.FULL_NAME -> "ФИО"
         SurveyQuestion.LAST_POSITION -> "Должность на предыдущем месте"
