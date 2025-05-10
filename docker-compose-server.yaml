@@ -9,13 +9,15 @@ services:
       TZ: ${TZ:-Europe/Moscow}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
-      POSTGRES_DB: tutor_telegram_bot
+      POSTGRES_DB: tutor_bot_db
       POSTGRES_INITDB_ARGS: "--locale=ru_RU.UTF-8 --lc-collate=C --encoding=UTF-8"
+    ports:
+      - "5436:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d tutor_telegram_bot"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d tutor_bot_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,6 +44,7 @@ services:
 
   bot:
     image: greem4/tutor_telegram_bot:latest
+    platform: linux/arm64
     container_name: tutor_bot_app
     restart: unless-stopped
     depends_on:
@@ -71,7 +74,7 @@ services:
       TZ: ${TZ:-Europe/Moscow}
 
     ports:
-      - "8080:8080"
+      - "8087:8080"
     networks:
       - tutor_network
 

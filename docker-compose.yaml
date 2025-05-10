@@ -11,6 +11,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: tutor_bot_db
       POSTGRES_INITDB_ARGS: "--locale=ru_RU.UTF-8 --lc-collate=C --encoding=UTF-8"
+    ports:
+      - "5436:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -45,6 +47,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: tutor_telegram_bot
+    platform: linux/arm64
     container_name: tutor_bot_app
     restart: unless-stopped
     depends_on:
