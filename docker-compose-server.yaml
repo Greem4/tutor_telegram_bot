@@ -57,7 +57,7 @@ services:
 
   bot:
     image: greem4/tutor_telegram_bot:latest
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: tutor_bot_app
     restart: unless-stopped
     depends_on:
