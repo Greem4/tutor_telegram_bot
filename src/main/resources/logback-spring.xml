@@ -57,7 +57,7 @@
         <appender-ref ref="FILE"/>
     </logger>
 
-    <logger name="ru.greemlab.tutor_telegram_bot.service" level="DEBUG" additivity="false">
+    <logger name="ru.greemlab.tutor_telegram_bot.service" level="info" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>

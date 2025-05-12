@@ -16,6 +16,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
 
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.xml
@@ -42,8 +43,6 @@ spring:
     cache-names:
       - surveySessions
       - caseSessions
-    redis:
-      time-to-live: 2h
 
 logging:
   config: classpath:logback-spring.xml
